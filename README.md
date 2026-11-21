@@ -18,7 +18,7 @@
 
 **Antigravity 一键汉化补丁** - 为 Google Antigravity 桌面端提供完整的中文界面支持（基于 [MIMICTE/Antigravity-zh-CN](https://github.com/MIMICTE/Antigravity-zh-CN) 持续适配维护，遵循 MIT 协议）：
 - 🧭 **跨机动态探测**：自动读取 `ANTIGRAVITY_APP_DIR`、Windows 安装注册表与常见目录定位桌面端路径，不依赖固定盘符；
-- 🔄 **适配 Antigravity 2.33+/2.34+**：保留官方自动更新通道（不封锁 `app-update.yml`）并保留 `--remote-debugging-port=0`，兼容 AGY 监控插件；
+- 🔄 **适配 Antigravity 2.33+/2.34+**：完整保留官方自动更新通道与扩展插件兼容性；
 - 🐋 **无缝联动大肥鱼管家**：可在大肥鱼管家「反重力切号」与「工具更新」标签页一键克隆、拉取词典更新、执行汉化或还原英文。
 
 ## ✨ 核心特性
