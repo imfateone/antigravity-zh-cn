@@ -3,25 +3,25 @@ chcp 65001 >nul
 setlocal
 set "RESTORE=%~dp0Restore.py"
 
-where uv >nul 2>nul
-if %errorlevel%==0 (
-    uv run --no-sync python "%RESTORE%" --no-pause
-    goto :done
-)
-
-where python >nul 2>nul
+python -c "import sys; sys.exit(0)" >nul 2>nul
 if %errorlevel%==0 (
     python "%RESTORE%" --no-pause
     goto :done
 )
 
-where py >nul 2>nul
+py -3 -c "import sys; sys.exit(0)" >nul 2>nul
 if %errorlevel%==0 (
     py -3 "%RESTORE%" --no-pause
     goto :done
 )
 
-echo [ERROR] Python or uv not found in PATH.
+where uv >nul 2>nul
+if %errorlevel%==0 (
+    uv run --no-project python "%RESTORE%" --no-pause
+    goto :done
+)
+
+echo [ERROR] Python 3 or uv not found in PATH.
 pause
 exit /b 1
 

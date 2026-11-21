@@ -1,7 +1,7 @@
 # coding: utf-8
+import glob
 import os
 import json
-import re
 import struct
 import subprocess
 import shutil
@@ -12,97 +12,21 @@ try:
 except Exception:
     pass
 
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
 
-def _extract_dir_from_exe_value(raw):
-    val = str(raw or "").strip()
-    if not val:
-        return ""
-    if val.startswith('"'):
-        end_q = val.find('"', 1)
-        if end_q > 1:
-            val = val[1:end_q]
-    else:
-        val = val.split(",")[0].strip()
-        m = re.match(r"^(.*?\.exe)\b", val, re.IGNORECASE)
-        if m:
-            val = m.group(1)
-    p = os.path.dirname(val) if val.lower().endswith(".exe") else val
-    return p if p and os.path.isdir(os.path.join(p, "resources")) else ""
+from _ag_common import (  # noqa: E402
+    cleanup_stale_updater_cache,
+    find_app_dir,
+    get_desktop_dir,
+    get_resources_dir,
+    is_antigravity_running,
+    relaunch_antigravity,
+    stop_antigravity_desktop_processes,
+)
 
-
-def find_app_dir():
-    if sys.platform == "win32":
-        env_dir = (os.environ.get("ANTIGRAVITY_APP_DIR") or "").strip().strip('"')
-        if env_dir and os.path.isdir(os.path.join(env_dir, "resources")):
-            return env_dir
-
-        try:
-            import winreg
-
-            try:
-                with winreg.OpenKey(
-                    winreg.HKEY_CURRENT_USER,
-                    r"Software\121a0be4-63bd-531e-acf8-fc3924c7e984",
-                ) as k:
-                    loc, _ = winreg.QueryValueEx(k, "InstallLocation")
-                    loc = str(loc or "").strip().strip('"')
-                    if loc and os.path.isdir(os.path.join(loc, "resources")):
-                        return loc
-            except OSError:
-                pass
-
-            uninstall_roots = [
-                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
-                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
-            ]
-            for hive, subkey in uninstall_roots:
-                try:
-                    with winreg.OpenKey(hive, subkey) as root_k:
-                        count = winreg.QueryInfoKey(root_k)[0]
-                        for idx in range(count):
-                            try:
-                                child_name = winreg.EnumKey(root_k, idx)
-                                with winreg.OpenKey(root_k, child_name) as ck:
-                                    disp, _ = winreg.QueryValueEx(ck, "DisplayName")
-                                    disp_s = str(disp or "").strip()
-                                    if not disp_s.startswith("Antigravity") or "IDE" in disp_s:
-                                        continue
-                                    for val_name in ("InstallLocation", "DisplayIcon", "UninstallString"):
-                                        try:
-                                            v, _ = winreg.QueryValueEx(ck, val_name)
-                                            cand = _extract_dir_from_exe_value(v)
-                                            if cand:
-                                                return cand
-                                        except OSError:
-                                            continue
-                            except OSError:
-                                continue
-                except OSError:
-                    continue
-        except Exception:
-            pass
-
-        candidates = [
-            os.path.join(os.getenv("LOCALAPPDATA", ""), "Programs", "antigravity"),
-            os.path.join(os.getenv("ProgramFiles", ""), "Antigravity"),
-            r"D:\Tools\Antigravity\antigravity",
-            r"D:\Tools\Antigravity",
-        ]
-        for c in candidates:
-            if c and os.path.isdir(os.path.join(c, "resources")):
-                return c
-        return ""
-    elif sys.platform == "darwin":
-        return "/Applications/Antigravity.app" if os.path.isdir("/Applications/Antigravity.app") else ""
-    return ""
-
-
-def _resolve_resources_dir(app_dir):
-    if not app_dir:
-        return ""
-    if sys.platform == "darwin":
-        return os.path.join(app_dir, "Contents", "Resources")
-    return os.path.join(app_dir, "resources")
+_resolve_resources_dir = get_resources_dir
 
 
 APP_DIR = find_app_dir()
@@ -2083,28 +2007,57 @@ MENU_TRANSLATOR_INJECTION = r"""
 """
 
 def extract_asar(asar_path, dest_dir):
-    """Pure-Python asar archive extractor."""
+    """Pure-Python asar archive extractor with path-traversal and bounds checks."""
+    file_size = os.path.getsize(asar_path)
+    if file_size < 20:
+        raise ValueError("ASAR 文件过小或已损坏")
+    dest_root = os.path.realpath(dest_dir)
+    os.makedirs(dest_root, exist_ok=True)
+
     with open(asar_path, 'rb') as f:
         data = f.read(16)
+        if len(data) != 16:
+            raise ValueError("ASAR 文件头不完整")
         magic, size, u1, header_size = struct.unpack('<4I', data)
+        if header_size <= 0 or size <= 0 or 16 + header_size > file_size:
+            raise ValueError("ASAR 文件头长度非法")
+        base_offset = 8 + size
+        if base_offset > file_size:
+            raise ValueError("ASAR 数据偏移越界")
         header_json = f.read(header_size).decode('utf-8')
         header = json.loads(header_json)
-        base_offset = 8 + size
-        
+        if not isinstance(header, dict) or not isinstance(header.get('files'), dict):
+            raise ValueError("ASAR 文件索引结构无效")
+
+        def _safe_child(current_path, name):
+            if not isinstance(name, str) or not name or name in ('.', '..'):
+                raise ValueError(f"ASAR 非法条目名: {name!r}")
+            if '/' in name or '\\' in name or '\x00' in name or os.path.isabs(name):
+                raise ValueError(f"ASAR 路径穿越拦截: {name!r}")
+            candidate = os.path.realpath(os.path.join(current_path, name))
+            if os.path.commonpath([dest_root, candidate]) != dest_root:
+                raise ValueError(f"ASAR 路径穿越拦截: {name!r}")
+            return candidate
+
         def extract_node(node, current_path):
-            if not os.path.exists(current_path):
-                os.makedirs(current_path)
+            os.makedirs(current_path, exist_ok=True)
             for name, info in node.items():
-                path = os.path.join(current_path, name)
-                if 'files' in info:
+                if not isinstance(info, dict):
+                    continue
+                path = _safe_child(current_path, name)
+                if 'files' in info and isinstance(info['files'], dict):
                     extract_node(info['files'], path)
-                elif 'offset' in info:
-                    f.seek(base_offset + int(info['offset']))
-                    file_data = f.read(int(info['size']))
+                elif 'offset' in info and 'size' in info:
+                    offset = int(info['offset'])
+                    entry_size = int(info['size'])
+                    if offset < 0 or entry_size < 0 or base_offset + offset + entry_size > file_size:
+                        raise ValueError(f"ASAR 文件偏移越界: {name!r}")
+                    f.seek(base_offset + offset)
+                    file_data = f.read(entry_size)
                     with open(path, 'wb') as out_f:
                         out_f.write(file_data)
-        
-        extract_node(header.get('files', {}), dest_dir)
+
+        extract_node(header.get('files', {}), dest_root)
 
 def append_once(file_path, content, marker, name):
     if not os.path.exists(file_path):
@@ -2159,24 +2112,11 @@ def replace_in_file(file_path, target, replacement):
         f.write(content)
     print(f"[成功] 执行目标替换 ({os.path.basename(file_path)})")
 
-def is_reparse_point(path):
-    try:
-        return bool(os.lstat(path).st_file_attributes & 0x400)
-    except Exception:
-        return False
-
-def is_antigravity_running():
-    try:
-        out = subprocess.check_output('tasklist /FI "IMAGENAME eq Antigravity.exe" /NH', shell=True, text=True)
-        return "Antigravity.exe" in out
-    except Exception:
-        return False
-
 def ensure_desktop_shortcut(exe_path):
     if sys.platform != "win32" or not os.path.exists(exe_path):
         return
-    desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
-    if not os.path.exists(desktop):
+    desktop = get_desktop_dir()
+    if not desktop or not os.path.exists(desktop):
         return
     lnk_path = os.path.join(desktop, "Antigravity.lnk")
     lnk_ps = lnk_path.replace("'", "''")
@@ -2206,34 +2146,74 @@ def ensure_desktop_shortcut(exe_path):
     except Exception as e:
         print(f"[提示] 创建桌面快捷方式跳过: {e}")
 
-def stop_antigravity_desktop_processes(app_dir=None):
-    """Stop only Antigravity 2.0 desktop processes (never Antigravity IDE)."""
-    if sys.platform == "win32":
-        patterns = []
-        if app_dir:
-            patterns.append(os.path.abspath(app_dir).rstrip("\\/") + "\\*")
-        local_default = os.path.join(os.getenv('LOCALAPPDATA', ''), 'Programs', 'antigravity')
-        if local_default:
-            pat = os.path.abspath(local_default).rstrip("\\/") + "\\*"
-            if pat not in patterns:
-                patterns.append(pat)
-        conds = " -or ".join(
-            f"$_.ExecutablePath -like '{p.replace(chr(39), chr(39) * 2)}'" for p in patterns if p
-        )
-        if not conds:
-            return
-        ps_cmd = (
-            "Get-CimInstance Win32_Process | Where-Object { "
-            f"$_.ExecutablePath -and ($_.ExecutablePath -notlike '*Antigravity IDE*') -and ({conds}) "
-            "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-        )
-        subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
-            check=False,
-            creationflags=0x08000000 if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0,
-        )
-    elif sys.platform == "darwin":
-        os.system("pkill -f Antigravity >/dev/null 2>&1")
+
+def _cleanup_temp_staging_dirs(resources_dir):
+    for pattern in ("app.staging.*", "app.old.*"):
+        for d in glob.glob(os.path.join(resources_dir, pattern)):
+            if os.path.isdir(d):
+                shutil.rmtree(d, ignore_errors=True)
+
+
+def _restore_update_yml(resources_dir):
+    update_yml = os.path.join(resources_dir, "app-update.yml")
+    disabled_yml = os.path.join(resources_dir, "app-update.yml.disabled")
+    if os.path.exists(disabled_yml):
+        try:
+            if not os.path.exists(update_yml):
+                os.rename(disabled_yml, update_yml)
+                print("[恢复] 已恢复官方自动更新配置 (app-update.yml)")
+            else:
+                os.remove(disabled_yml)
+        except Exception as e:
+            print(f"[提示] 恢复更新配置出现异常: {e}")
+
+
+def _inject_all_translations(target_app_dir):
+    preload_path = os.path.join(target_app_dir, "dist", "preload.js")
+    menu_path = os.path.join(target_app_dir, "dist", "menu.js")
+    tray_path = os.path.join(target_app_dir, "dist", "tray.js")
+    updater_path = os.path.join(target_app_dir, "dist", "updater.js")
+
+    append_once(preload_path, DOM_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine", "Web UI Injection")
+    append_once(menu_path, MENU_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine - Menu", "Menu Translator Injection")
+    remove_injected_block(updater_path, "Antigravity Chinese Localization Engine - Auto Update Hook", "自动更新封锁 Hook")
+
+    replace_in_file(tray_path, "'Show Antigravity'", "'显示 Antigravity'")
+    replace_in_file(tray_path, "'Quit'", "'退出'")
+    replace_in_file(
+        tray_path,
+        "(count > 0 ? `${count}` : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'",
+        "(count > 0 ? `${count} 个智能体运行中` : '暂无运行中的智能体')"
+    )
+
+    main_js_path = os.path.join(target_app_dir, "dist", "main.js")
+    replace_in_file(main_js_path, "label: 'No agents running'", "label: '暂无运行中的智能体'")
+    replace_in_file(main_js_path, "label: `Open ${electron_1.app.getName()}`", "label: `打开 ${electron_1.app.getName()}`")
+    replace_in_file(main_js_path, "label: 'Quit'", "label: '退出'")
+    replace_in_file(main_js_path, "buttons: ['Cancel', 'Quit']", "buttons: ['取消', '退出']")
+    replace_in_file(main_js_path, "title: 'Confirm Quit'", "title: '确认退出'")
+    replace_in_file(main_js_path, "message: 'Are you sure you want to quit?'", "message: '确定要退出 Antigravity 吗？'")
+    replace_in_file(main_js_path, "detail: 'There may be agents or background tasks running.'", "detail: '当前可能仍有智能体或后台任务正在运行。'")
+
+    splash_path = os.path.join(target_app_dir, "dist", "provisionSplash.js")
+    if os.path.exists(splash_path):
+        with open(splash_path, "r", encoding="utf-8") as f:
+            splash_content = f.read()
+        patched_splash = splash_content.replace("Setting up WSL: ", "正在配置 WSL: ")
+        if patched_splash != splash_content:
+            with open(splash_path, "w", encoding="utf-8") as f:
+                f.write(patched_splash)
+            print(f"[成功] 已成功汉化 WSL 启动界面 ({os.path.basename(splash_path)})")
+
+    loading_path = os.path.join(target_app_dir, "dist", "loadingOverlay.js")
+    if os.path.exists(loading_path):
+        with open(loading_path, "r", encoding="utf-8") as f:
+            loading_content = f.read()
+        patched_loading = loading_content.replace(">Loading Antigravity<", ">正在加载 Antigravity<")
+        if patched_loading != loading_content:
+            with open(loading_path, "w", encoding="utf-8") as f:
+                f.write(patched_loading)
+            print(f"[成功] 已成功汉化启动加载界面 ({os.path.basename(loading_path)})")
 
 
 def apply_patch(relaunch=True):
@@ -2258,101 +2238,59 @@ def apply_patch(relaunch=True):
     print(f"[目录] Antigravity 路径: {APP_DIR}")
 
     print("[执行] 正在为您关闭 Antigravity 及语言服务进程...")
-    stop_antigravity_desktop_processes(APP_DIR)
+    stop_antigravity_desktop_processes(APP_DIR, wait_timeout=8.0)
 
-    import time
-    time.sleep(3)
-    stop_antigravity_desktop_processes(APP_DIR)
-    time.sleep(1)
+    _cleanup_temp_staging_dirs(RESOURCES_DIR)
 
-    # 1. 确保 unpacked app 文件夹存在
+    # 1. 确保 unpacked app 文件夹就绪：新版安装时在暂存目录解包并注入后再原子替换，失败可完整回滚
     is_fresh_install = os.path.exists(ASAR_PATH)
-    if is_fresh_install and os.path.exists(UNPACKED_APP_DIR):
-        print("[状态] 检测到官方新版核心包，正在清理旧的解包缓存...")
-        shutil.rmtree(UNPACKED_APP_DIR, ignore_errors=True)
-
-    if not os.path.exists(UNPACKED_APP_DIR):
-        source_asar = ASAR_PATH
-        if not os.path.exists(source_asar) and os.path.exists(ASAR_PATH + ".disabled"):
-            source_asar = ASAR_PATH + ".disabled"
-            
+    if is_fresh_install or not os.path.exists(UNPACKED_APP_DIR):
+        source_asar = ASAR_PATH if os.path.exists(ASAR_PATH) else (ASAR_PATH + ".disabled")
         if not os.path.exists(source_asar):
             print(f"[错误] 未找到 app.asar: {ASAR_PATH}")
             return False
 
-        print("[执行] 正在提取 app.asar 核心文件 (使用原生 Python 解析器)...")
+        if is_fresh_install and os.path.exists(UNPACKED_APP_DIR):
+            print("[状态] 检测到官方新版核心包，将在临时目录重新解包并热替换...")
+
+        staging_dir = os.path.join(RESOURCES_DIR, f"app.staging.{os.getpid()}")
+        old_dir = os.path.join(RESOURCES_DIR, f"app.old.{os.getpid()}")
         try:
-            extract_asar(source_asar, UNPACKED_APP_DIR)
+            print("[执行] 正在提取 app.asar 核心文件到暂存目录...")
+            extract_asar(source_asar, staging_dir)
             print("[完成] 文件提取完毕.")
+            _inject_all_translations(staging_dir)
         except Exception as e:
-            print(f"[错误] 提取 app.asar 失败: {e}")
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            print(f"[错误] 提取或注入 app.asar 失败，已保留原状态: {e}")
             return False
+
+        moved_old = False
+        try:
+            if os.path.exists(UNPACKED_APP_DIR):
+                os.rename(UNPACKED_APP_DIR, old_dir)
+                moved_old = True
+            os.rename(staging_dir, UNPACKED_APP_DIR)
+        except Exception as e:
+            if moved_old and not os.path.exists(UNPACKED_APP_DIR) and os.path.exists(old_dir):
+                try:
+                    os.rename(old_dir, UNPACKED_APP_DIR)
+                except Exception:
+                    pass
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            print(f"[错误] 原子切换解包目录失败，已回滚原目录: {e}")
+            return False
+
+        if moved_old and os.path.exists(old_dir):
+            shutil.rmtree(old_dir, ignore_errors=True)
     else:
         print(f"[状态] 发现已解包的工作目录: {UNPACKED_APP_DIR}")
+        _inject_all_translations(UNPACKED_APP_DIR)
 
-    # 2. 注入各个组件
-    preload_path = os.path.join(UNPACKED_APP_DIR, "dist", "preload.js")
-    menu_path = os.path.join(UNPACKED_APP_DIR, "dist", "menu.js")
-    tray_path = os.path.join(UNPACKED_APP_DIR, "dist", "tray.js")
-    updater_path = os.path.join(UNPACKED_APP_DIR, "dist", "updater.js")
+    # 2. 恢复官方自动更新配置（如曾被旧版补丁重命名为 .disabled，放回 app-update.yml）
+    _restore_update_yml(RESOURCES_DIR)
 
-    append_once(preload_path, DOM_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine", "Web UI Injection")
-    append_once(menu_path, MENU_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine - Menu", "Menu Translator Injection")
-    remove_injected_block(updater_path, "Antigravity Chinese Localization Engine - Auto Update Hook", "自动更新封锁 Hook")
-
-    replace_in_file(tray_path, "'Show Antigravity'", "'显示 Antigravity'")
-    replace_in_file(tray_path, "'Quit'", "'退出'")
-    replace_in_file(
-        tray_path,
-        "(count > 0 ? `${count}` : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'",
-        "(count > 0 ? `${count} 个智能体运行中` : '暂无运行中的智能体')"
-    )
-
-    main_js_path = os.path.join(UNPACKED_APP_DIR, "dist", "main.js")
-    replace_in_file(main_js_path, "label: 'No agents running'", "label: '暂无运行中的智能体'")
-    replace_in_file(main_js_path, "label: `Open ${electron_1.app.getName()}`", "label: `打开 ${electron_1.app.getName()}`")
-    replace_in_file(main_js_path, "label: 'Quit'", "label: '退出'")
-    replace_in_file(main_js_path, "buttons: ['Cancel', 'Quit']", "buttons: ['取消', '退出']")
-    replace_in_file(main_js_path, "title: 'Confirm Quit'", "title: '确认退出'")
-    replace_in_file(main_js_path, "message: 'Are you sure you want to quit?'", "message: '确定要退出 Antigravity 吗？'")
-    replace_in_file(main_js_path, "detail: 'There may be agents or background tasks running.'", "detail: '当前可能仍有智能体或后台任务正在运行。'")
-
-    # 恢复官方自动更新配置（如曾被旧版补丁重命名为 .disabled，放回 app-update.yml）
-    update_yml = os.path.join(RESOURCES_DIR, "app-update.yml")
-    disabled_yml = os.path.join(RESOURCES_DIR, "app-update.yml.disabled")
-    if os.path.exists(disabled_yml):
-        try:
-            if not os.path.exists(update_yml):
-                os.rename(disabled_yml, update_yml)
-                print("[恢复] 已恢复官方自动更新配置 (app-update.yml)")
-            else:
-                os.remove(disabled_yml)
-        except Exception as e:
-            print(f"[提示] 恢复更新配置出现异常: {e}")
-
-    # 汉化 provisionSplash.js (WSL Provisioning Screen)
-    splash_path = os.path.join(UNPACKED_APP_DIR, "dist", "provisionSplash.js")
-    if os.path.exists(splash_path):
-        with open(splash_path, "r", encoding="utf-8") as f:
-            splash_content = f.read()
-        patched_splash = splash_content.replace("Setting up WSL: ", "正在配置 WSL: ")
-        if patched_splash != splash_content:
-            with open(splash_path, "w", encoding="utf-8") as f:
-                f.write(patched_splash)
-            print(f"[成功] 已成功汉化 WSL 启动界面 ({os.path.basename(splash_path)})")
-
-    # 3. 汉化 loadingOverlay (Splash Screen)
-    loading_path = os.path.join(UNPACKED_APP_DIR, "dist", "loadingOverlay.js")
-    if os.path.exists(loading_path):
-        with open(loading_path, "r", encoding="utf-8") as f:
-            loading_content = f.read()
-        patched_loading = loading_content.replace(">Loading Antigravity<", ">正在加载 Antigravity<")
-        if patched_loading != loading_content:
-            with open(loading_path, "w", encoding="utf-8") as f:
-                f.write(patched_loading)
-            print(f"[成功] 已成功汉化启动加载界面 ({os.path.basename(loading_path)})")
-
-    # 4. 禁用原生 app.asar
+    # 3. 禁用原生 app.asar
     if os.path.exists(ASAR_PATH):
         print("[执行] 正在禁用官方 app.asar，以强制读取汉化代码...")
         if os.path.exists(ASAR_PATH + ".disabled"):
@@ -2360,39 +2298,24 @@ def apply_patch(relaunch=True):
         os.rename(ASAR_PATH, ASAR_PATH + ".disabled")
         print("[成功] app.asar -> app.asar.disabled")
 
+    try:
+        removed_cache = cleanup_stale_updater_cache(APP_DIR)
+        if removed_cache:
+            print(f"[清理] 已自动清理 {len(removed_cache)} 个已安装的旧版更新缓存文件")
+    except Exception as e:
+        print(f"[提示] 清理更新缓存跳过: {e}")
+
     print("                                                                ")
     print("==================================================================")
     print("                                                                ")
     print("       汉化补丁注入成功！                                        ")
     print("                                                                ")
     print("==================================================================")
-    
+
     ensure_desktop_shortcut(os.path.join(APP_DIR, 'Antigravity.exe'))
 
     if relaunch:
-        if sys.platform == "win32":
-            exe_path = os.path.join(APP_DIR, "Antigravity.exe")
-            if os.path.exists(exe_path):
-                DETACHED_PROCESS = 0x00000008
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-                clean_env = {
-                    k: v
-                    for k, v in os.environ.items()
-                    if k != "ELECTRON_RUN_AS_NODE"
-                    and not k.startswith(("ANTIGRAVITY_", "AGY_", "VSCODE_"))
-                }
-                subprocess.Popen(
-                    [exe_path, "--remote-debugging-port=0"],
-                    cwd=os.path.dirname(exe_path),
-                    env=clean_env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-                    close_fds=True
-                )
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", APP_DIR])
+        relaunch_antigravity(APP_DIR)
     return True
 
 def wait_and_auto_patch_after_update():
