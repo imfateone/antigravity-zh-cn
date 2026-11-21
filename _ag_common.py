@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import json
 import os
@@ -107,6 +108,92 @@ def get_resources_dir(app_dir):
     if sys.platform == "darwin":
         return os.path.join(app_dir, "Contents", "Resources")
     return os.path.join(app_dir, "resources")
+
+
+def _is_pid_alive(pid: int) -> bool:
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        kernel32 = ctypes.windll.kernel32
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            err = ctypes.GetLastError()
+            return err == 5  # ERROR_ACCESS_DENIED means process exists
+        try:
+            exit_code = ctypes.c_ulong()
+            if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return exit_code.value == 259  # STILL_ACTIVE
+            return True
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+@contextlib.contextmanager
+def acquire_app_lock(resources_dir: str, stale_seconds: float = 600.0):
+    """Cross-process exclusive lock per Antigravity resources dir for Patcher/Restore."""
+    os.makedirs(resources_dir, exist_ok=True)
+    lock_path = os.path.join(resources_dir, ".ag-zh-patch.lock")
+    fd = None
+    for attempt in range(2):
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            payload = json.dumps({"pid": os.getpid(), "ts": time.time()}, separators=(",", ":"))
+            os.write(fd, payload.encode("utf-8"))
+            break
+        except FileExistsError:
+            stale = False
+            if attempt == 0:
+                try:
+                    with open(lock_path, "r", encoding="utf-8") as lf:
+                        info = json.load(lf)
+                    lock_pid = info.get("pid") if isinstance(info, dict) else None
+                    lock_ts = float(info.get("ts") or 0.0) if isinstance(info, dict) else 0.0
+                    age = time.time() - lock_ts if lock_ts > 0 else stale_seconds + 1.0
+                    if lock_pid is not None and not _is_pid_alive(int(lock_pid)):
+                        stale = True
+                    elif lock_pid is None and age > 5.0:
+                        stale = True
+                    elif age > stale_seconds and not (lock_pid and _is_pid_alive(int(lock_pid))):
+                        stale = True
+                except Exception:
+                    try:
+                        if time.time() - os.path.getmtime(lock_path) > 5.0:
+                            stale = True
+                    except OSError:
+                        stale = True
+            if stale and attempt == 0:
+                try:
+                    os.remove(lock_path)
+                    continue
+                except OSError:
+                    pass
+            raise BlockingIOError("已有另一个 Antigravity 汉化或还原任务正在运行，请等待其完成后重试。")
+    try:
+        yield lock_path
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            os.remove(lock_path)
+        except OSError:
+            pass
 
 
 def get_desktop_dir():

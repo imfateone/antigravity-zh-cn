@@ -17,6 +17,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from _ag_common import (  # noqa: E402
+    acquire_app_lock,
     cleanup_stale_updater_cache,
     find_app_dir,
     get_desktop_dir,
@@ -2237,66 +2238,71 @@ def apply_patch(relaunch=True):
     UNPACKED_APP_DIR = os.path.join(RESOURCES_DIR, "app")
     print(f"[目录] Antigravity 路径: {APP_DIR}")
 
-    print("[执行] 正在为您关闭 Antigravity 及语言服务进程...")
-    stop_antigravity_desktop_processes(APP_DIR, wait_timeout=8.0)
+    try:
+        with acquire_app_lock(RESOURCES_DIR):
+            print("[执行] 正在为您关闭 Antigravity 及语言服务进程...")
+            stop_antigravity_desktop_processes(APP_DIR, wait_timeout=8.0)
 
-    _cleanup_temp_staging_dirs(RESOURCES_DIR)
+            _cleanup_temp_staging_dirs(RESOURCES_DIR)
 
-    # 1. 确保 unpacked app 文件夹就绪：新版安装时在暂存目录解包并注入后再原子替换，失败可完整回滚
-    is_fresh_install = os.path.exists(ASAR_PATH)
-    if is_fresh_install or not os.path.exists(UNPACKED_APP_DIR):
-        source_asar = ASAR_PATH if os.path.exists(ASAR_PATH) else (ASAR_PATH + ".disabled")
-        if not os.path.exists(source_asar):
-            print(f"[错误] 未找到 app.asar: {ASAR_PATH}")
-            return False
+            # 1. 确保 unpacked app 文件夹就绪：新版安装时在暂存目录解包并注入后再原子替换，失败可完整回滚
+            is_fresh_install = os.path.exists(ASAR_PATH)
+            if is_fresh_install or not os.path.exists(UNPACKED_APP_DIR):
+                source_asar = ASAR_PATH if os.path.exists(ASAR_PATH) else (ASAR_PATH + ".disabled")
+                if not os.path.exists(source_asar):
+                    print(f"[错误] 未找到 app.asar: {ASAR_PATH}")
+                    return False
 
-        if is_fresh_install and os.path.exists(UNPACKED_APP_DIR):
-            print("[状态] 检测到官方新版核心包，将在临时目录重新解包并热替换...")
+                if is_fresh_install and os.path.exists(UNPACKED_APP_DIR):
+                    print("[状态] 检测到官方新版核心包，将在临时目录重新解包并热替换...")
 
-        staging_dir = os.path.join(RESOURCES_DIR, f"app.staging.{os.getpid()}")
-        old_dir = os.path.join(RESOURCES_DIR, f"app.old.{os.getpid()}")
-        try:
-            print("[执行] 正在提取 app.asar 核心文件到暂存目录...")
-            extract_asar(source_asar, staging_dir)
-            print("[完成] 文件提取完毕.")
-            _inject_all_translations(staging_dir)
-        except Exception as e:
-            shutil.rmtree(staging_dir, ignore_errors=True)
-            print(f"[错误] 提取或注入 app.asar 失败，已保留原状态: {e}")
-            return False
-
-        moved_old = False
-        try:
-            if os.path.exists(UNPACKED_APP_DIR):
-                os.rename(UNPACKED_APP_DIR, old_dir)
-                moved_old = True
-            os.rename(staging_dir, UNPACKED_APP_DIR)
-        except Exception as e:
-            if moved_old and not os.path.exists(UNPACKED_APP_DIR) and os.path.exists(old_dir):
+                staging_dir = os.path.join(RESOURCES_DIR, f"app.staging.{os.getpid()}")
+                old_dir = os.path.join(RESOURCES_DIR, f"app.old.{os.getpid()}")
                 try:
-                    os.rename(old_dir, UNPACKED_APP_DIR)
-                except Exception:
-                    pass
-            shutil.rmtree(staging_dir, ignore_errors=True)
-            print(f"[错误] 原子切换解包目录失败，已回滚原目录: {e}")
-            return False
+                    print("[执行] 正在提取 app.asar 核心文件到暂存目录...")
+                    extract_asar(source_asar, staging_dir)
+                    print("[完成] 文件提取完毕.")
+                    _inject_all_translations(staging_dir)
+                except Exception as e:
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                    print(f"[错误] 提取或注入 app.asar 失败，已保留原状态: {e}")
+                    return False
 
-        if moved_old and os.path.exists(old_dir):
-            shutil.rmtree(old_dir, ignore_errors=True)
-    else:
-        print(f"[状态] 发现已解包的工作目录: {UNPACKED_APP_DIR}")
-        _inject_all_translations(UNPACKED_APP_DIR)
+                moved_old = False
+                try:
+                    if os.path.exists(UNPACKED_APP_DIR):
+                        os.rename(UNPACKED_APP_DIR, old_dir)
+                        moved_old = True
+                    os.rename(staging_dir, UNPACKED_APP_DIR)
+                except Exception as e:
+                    if moved_old and not os.path.exists(UNPACKED_APP_DIR) and os.path.exists(old_dir):
+                        try:
+                            os.rename(old_dir, UNPACKED_APP_DIR)
+                        except Exception:
+                            pass
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                    print(f"[错误] 原子切换解包目录失败，已回滚原目录: {e}")
+                    return False
 
-    # 2. 恢复官方自动更新配置（如曾被旧版补丁重命名为 .disabled，放回 app-update.yml）
-    _restore_update_yml(RESOURCES_DIR)
+                if moved_old and os.path.exists(old_dir):
+                    shutil.rmtree(old_dir, ignore_errors=True)
+            else:
+                print(f"[状态] 发现已解包的工作目录: {UNPACKED_APP_DIR}")
+                _inject_all_translations(UNPACKED_APP_DIR)
 
-    # 3. 禁用原生 app.asar
-    if os.path.exists(ASAR_PATH):
-        print("[执行] 正在禁用官方 app.asar，以强制读取汉化代码...")
-        if os.path.exists(ASAR_PATH + ".disabled"):
-            os.remove(ASAR_PATH + ".disabled")
-        os.rename(ASAR_PATH, ASAR_PATH + ".disabled")
-        print("[成功] app.asar -> app.asar.disabled")
+            # 2. 恢复官方自动更新配置（如曾被旧版补丁重命名为 .disabled，放回 app-update.yml）
+            _restore_update_yml(RESOURCES_DIR)
+
+            # 3. 禁用原生 app.asar
+            if os.path.exists(ASAR_PATH):
+                print("[执行] 正在禁用官方 app.asar，以强制读取汉化代码...")
+                if os.path.exists(ASAR_PATH + ".disabled"):
+                    os.remove(ASAR_PATH + ".disabled")
+                os.rename(ASAR_PATH, ASAR_PATH + ".disabled")
+                print("[成功] app.asar -> app.asar.disabled")
+    except BlockingIOError as e:
+        print(f"[提示] {e}")
+        return False
 
     try:
         removed_cache = cleanup_stale_updater_cache(APP_DIR)

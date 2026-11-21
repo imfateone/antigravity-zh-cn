@@ -235,6 +235,36 @@ class TestAntigravityZhPatcher(unittest.TestCase):
             self.assertFalse(pend_new.exists())
             self.assertFalse(info_json.exists())
 
+    def test_cross_process_lock_blocks_concurrent_patch_and_recovers_stale_lock(self):
+        with tempfile.TemporaryDirectory() as td:
+            app_dir = Path(td) / "Antigravity"
+            res_dir = app_dir / "resources"
+            res_dir.mkdir(parents=True)
+            asar_path = res_dir / "app.asar"
+            _build_synthetic_asar(
+                asar_path,
+                {
+                    "package.json": b'{"version":"2.34.0"}',
+                    "dist/preload.js": b"// preload\n",
+                    "dist/menu.js": b"// menu\n",
+                },
+            )
+
+            # While lock is held, both apply_patch & restore return False without modifying files
+            with _ag_common.acquire_app_lock(str(res_dir)):
+                with mock.patch.dict(os.environ, {"ANTIGRAVITY_APP_DIR": str(app_dir)}):
+                    self.assertFalse(Patcher.apply_patch(relaunch=False))
+                    self.assertFalse(Restore.restore(relaunch=False))
+                self.assertTrue(asar_path.is_file())
+                self.assertFalse((res_dir / "app.asar.disabled").exists())
+
+            # Dead-PID stale lock is automatically cleaned and lock acquisition succeeds
+            lock_path = res_dir / ".ag-zh-patch.lock"
+            lock_path.write_text('{"pid": 99999999, "ts": 1}', encoding="utf-8")
+            with _ag_common.acquire_app_lock(str(res_dir)):
+                self.assertTrue(lock_path.is_file())
+            self.assertFalse(lock_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
