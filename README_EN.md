@@ -16,12 +16,12 @@ An open-source Chinese localization patch for Google Antigravity Desktop
 
 ## 📖 Project Overview
 
-**Antigravity v2.21.1 Chinese Localization Patch** - Provides complete Chinese interface support for Google Antigravity desktop application.
+**Antigravity Chinese Localization Patch** - Provides complete Chinese interface support for Google Antigravity Desktop (maintained on top of [MIMICTE/Antigravity-zh-CN](https://github.com/MIMICTE/Antigravity-zh-CN) under MIT License), with dynamic installation discovery and compatibility for Antigravity 2.33+/2.34+ while preserving official auto-updates.
 
 ## ✨ Key Features
 
-- 🚀 **Zero Dependencies** - Built-in pure Python ASAR parser and packer using only `struct` and `json` libraries, no Node.js or npm required
-- 🎯 **Smart Text Matching** - Uses low-level `indexOf` fragmentation reconstruction and CSS pseudo-class polymorphic matching to bypass Webpack code splitting issues
+- 🚀 **Zero Dependencies** - Built-in pure Python ASAR parser and packer using only standard libraries, no Node.js or npm required
+- 🎯 **Smart UI Matching & Chat Content Immunity** - Translates only UI chrome while automatically skipping user message bubbles, assistant Markdown replies, math formulas, code/terminal blocks, editable input content, and monitor widgets—preventing chat tampering or false positives on technical tokens like `2D`/`3D`/`1M`
 - ⚡ **One-Click Deployment** - Automatically handles process cleanup and software restart for a seamless "press Enter → enjoy Chinese" experience
 - 🛡️ **Clean & Reversible** - Complete removal of localization with restore script, ensuring "lossless rollback" to official English version at any time
 - 🧭 **Cross-Platform Compatibility** - Automatically detects OS environment, natively supporting path resolution and process management on both Windows and macOS
@@ -71,11 +71,17 @@ This project leverages Electron framework mechanisms:
 ### 1. Unpacked Patching
 Disables the official `app.asar` file, forcing the software to read from the unpacked `app` folder with injected localization code.
 
-### 2. Dynamic DOM Interception
-Injects `MutationObserver` in `preload.js` to monitor DOM changes in real-time and replace English text with Chinese.
+### 2. Dynamic DOM Interception & Content Isolation
+Injects `MutationObserver` in `preload.js` to localize UI chrome in real time while short-circuiting chat replies, user bubbles, Markdown/table prose, math, code/terminal blocks, and user-typed input text.
 
 ### 3. Native ASAR Parser
-Pure Python implementation of ASAR file format parser with zero external dependencies.
+Pure Python implementation of the ASAR file format parser with zero external dependencies, path-traversal protection, cross-process locking, and automatic rollback on failure.
+
+### 4. Automated Tests
+```bash
+python -m unittest discover -s tests -v
+```
+Covers ASAR extraction security, patch/rollback flows, updater cache version guards, cross-process locking, and Node-backed DOM localization / content-immunity regression tests.
 
 ## ⚠️ Known Limitations
 

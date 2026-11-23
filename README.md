@@ -24,7 +24,7 @@
 ## ✨ 核心特性
 
 - 🚀 **零依赖 (Zero Dependencies)** - 自带纯原生 Python 编写的 ASAR 解析与打包算法，无需安装 Node.js，无需 npm，无需 `asar` 命令行工具
-- 🎯 **智能文本匹配** - 采用底层 `indexOf` 碎片化重组与 CSS 伪类多态匹配策略，完美绕过 Webpack 代码分割导致的汉化失效问题
+- 🎯 **智能文本匹配 & 对话内容免疫** - 采用底层 `indexOf` 碎片化重组与动态 DOM 替换策略，同时**自动跳过用户消息气泡、AI 回复 Markdown 正文、数学公式、代码/终端、输入编辑区正文与扩展监控组件**，仅汉化 UI 界面壳子，绝不篡改真实对话内容或误翻 `2D`/`3D`/`1M` 等技术标识
 - ⚡ **一键部署** - 执行补丁后自动清理进程并重启软件，实现"敲下回车 → 享受中文"的无缝体验
 - 🛡️ **纯净可逆** - 还原脚本可彻底抹除所有汉化残留，确保随时能"无损回滚"至纯血官方英文版
 - 🧭 **全动态跨平台寻址** - 智能识别系统架构，原生支持 Windows 及 macOS 环境下的路径寻址与进程管理
@@ -74,11 +74,17 @@ python Antigravity-Patcher.py
 ### 1. 免打包劫持 (Unpacked Patching)
 禁用官方 `app.asar` 文件，迫使软件读取注入了汉化代码的解包 `app` 文件夹。
 
-### 2. 动态 DOM 拦截 (Dynamic DOM Interception)
-在 `preload.js` 中注入 `MutationObserver`，实时监控页面 DOM 变化并替换英文文本为中文。
+### 2. 动态 DOM 拦截与内容区隔离 (Dynamic DOM Interception)
+在 `preload.js` 中注入 `MutationObserver`，实时监控界面 UI 变化并替换英文文本为中文；同时在节点与事件入口直接短路跳过对话正文、用户消息、Markdown/表格内容、公式、代码/终端与用户输入内容，避免篡改回复及流式输出扫描开销。
 
 ### 3. 原生 ASAR 解析器
-使用纯 Python 实现的 ASAR 文件格式解析器，零外部依赖。
+使用纯 Python 实现的 ASAR 文件格式解析器，零外部依赖，并内置路径穿越校验、跨进程文件锁与失败自动回滚保护。
+
+### 4. 自动化测试
+```bash
+python -m unittest discover -s tests -v
+```
+涵盖 ASAR 解析安全校验、补丁注入与失败回滚、官方更新缓存版本守护、跨进程锁，以及基于 Node 运行时的 DOM 翻译与对话免疫回归测试。
 
 ## ⚠️ 已知限制
 

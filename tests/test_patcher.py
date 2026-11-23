@@ -265,6 +265,220 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 self.assertTrue(lock_path.is_file())
             self.assertFalse(lock_path.exists())
 
+    def test_localization_skips_chat_content_and_preserves_2d_3d_tokens(self):
+        """运行真实 DOM_TRANSLATOR_INJECTION JS，验证不篡改对话正文与 2D/3D/1M/2H，同时正常汉化 UI 壳子。"""
+        import shutil
+        import subprocess
+
+        node_exe = shutil.which("node")
+        if not node_exe:
+            self.skipTest("node not installed")
+
+        harness = r"""
+const fs = require('node:fs');
+const vm = require('node:vm');
+const scriptSrc = fs.readFileSync(process.argv[2], 'utf8');
+
+function matchSingle(el, sel) {
+  sel = sel.trim();
+  if (!sel || !el || el.nodeType !== 1) return false;
+  if (sel.startsWith('#')) return el.id === sel.slice(1);
+  if (sel.startsWith('.')) {
+    const cls = sel.slice(1).replace(/\\/g, '');
+    return String(el.className || '').split(/\s+/).includes(cls);
+  }
+  const attrEq = sel.match(/^\[([^=\]]+)="([^"]*)"\]$/);
+  if (attrEq) return el.getAttribute(attrEq[1]) === attrEq[2];
+  const attrContains = sel.match(/^\[([^=\]]+)\*="([^"]*)"\]$/);
+  if (attrContains) {
+    const v = attrContains[1] === 'class' ? String(el.className || '') : String(el.getAttribute(attrContains[1]) || '');
+    return v.includes(attrContains[2]);
+  }
+  const attrHas = sel.match(/^\[([^\]]+)\]$/);
+  if (attrHas) return el.hasAttribute(attrHas[1]);
+  return el.tagName === sel.toUpperCase();
+}
+
+function makeEl(tag, opts = {}) {
+  const attrs = Object.assign({}, opts.attrs || {});
+  const el = {
+    nodeType: 1,
+    tagName: tag.toUpperCase(),
+    id: opts.id || '',
+    className: opts.className || '',
+    type: opts.type || '',
+    placeholder: opts.placeholder || '',
+    title: opts.title || '',
+    value: opts.value || '',
+    parentElement: null,
+    childNodes: [],
+    appendChild(child) {
+      child.parentElement = el;
+      el.childNodes.push(child);
+      return child;
+    },
+    getAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null; },
+    setAttribute(k, v) { attrs[k] = String(v); },
+    hasAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k); },
+    matches(selector) {
+      return selector.split(',').some(part => matchSingle(el, part));
+    },
+    closest(selector) {
+      let cur = el;
+      while (cur) {
+        if (cur.matches(selector)) return cur;
+        cur = cur.parentElement;
+      }
+      return null;
+    },
+    querySelector() { return null; },
+    get textContent() {
+      return el.childNodes.map(c => c.textContent).join('');
+    },
+  };
+  return el;
+}
+
+function makeText(s) {
+  return { nodeType: 3, textContent: s, parentElement: null };
+}
+
+const body = makeEl('body');
+
+// 1. UI chrome (MUST translate)
+const sidebarSpan2d = makeEl('span'); sidebarSpan2d.appendChild(makeText('2d'));
+const sidebarSpan5h = makeEl('span'); sidebarSpan5h.appendChild(makeText('5h'));
+const sidebarSpanAgo = makeEl('span'); sidebarSpanAgo.appendChild(makeText('3d ago'));
+const uiSpan2D = makeEl('span'); uiSpan2D.appendChild(makeText('2D'));
+const uiSpan3D = makeEl('span'); uiSpan3D.appendChild(makeText('3D'));
+const uiSpan1M = makeEl('span'); uiSpan1M.appendChild(makeText('1M'));
+const uiSpan2H = makeEl('span'); uiSpan2H.appendChild(makeText('2H'));
+const uiSpan5S = makeEl('span'); uiSpan5S.appendChild(makeText('5S'));
+const uiSpanWorking = makeEl('span'); uiSpanWorking.appendChild(makeText('Working...'));
+const uiSpanWorkDir = makeEl('span'); uiSpanWorkDir.appendChild(makeText('Working directory'));
+const uiSpanThought = makeEl('span'); uiSpanThought.appendChild(makeText('Thought for 5s'));
+const uiBtnSave = makeEl('button'); uiBtnSave.appendChild(makeText('Save'));
+const uiTextInput = makeEl('input', { type: 'text', value: 'error', placeholder: 'Search' });
+const uiTextarea = makeEl('textarea', { placeholder: 'Search' });
+uiTextarea.appendChild(makeText('2d'));
+
+// 2. Chat markdown & user bubble & AGY monitor (MUST NOT translate content)
+const prose = makeEl('div', { className: 'prose prose-sm' });
+const proseP = makeEl('p'); proseP.appendChild(makeText('2D'));
+const proseTd = makeEl('td'); proseTd.appendChild(makeText('true'));
+const proseStrong = makeEl('strong'); proseStrong.appendChild(makeText('2d'));
+const proseWorking = makeEl('span'); proseWorking.appendChild(makeText('Working...'));
+prose.appendChild(proseP); prose.appendChild(proseTd); prose.appendChild(proseStrong); prose.appendChild(proseWorking);
+
+const userBubble = makeEl('div', { className: 'group/user-input-step' });
+const userText = makeEl('div'); userText.appendChild(makeText('3D'));
+const userErr = makeEl('span'); userErr.appendChild(makeText('error'));
+userBubble.appendChild(userText); userBubble.appendChild(userErr);
+
+const plainTable = makeEl('table');
+const plainTd5h = makeEl('td'); plainTd5h.appendChild(makeText('5h'));
+const plainTdBool = makeEl('td'); plainTdBool.appendChild(makeText('false'));
+plainTable.appendChild(plainTd5h); plainTable.appendChild(plainTdBool);
+
+const agyHost = makeEl('div', { id: 'agy-monitor-footer-host' });
+const agy5h = makeEl('span'); agy5h.appendChild(makeText('5h'));
+agyHost.appendChild(agy5h);
+
+for (const n of [
+  sidebarSpan2d, sidebarSpan5h, sidebarSpanAgo,
+  uiSpan2D, uiSpan3D, uiSpan1M, uiSpan2H, uiSpan5S,
+  uiSpanWorking, uiSpanWorkDir, uiSpanThought, uiBtnSave,
+  uiTextInput, uiTextarea,
+  prose, userBubble, plainTable, agyHost,
+]) body.appendChild(n);
+
+const ctx = {
+  window: {},
+  document: { body, readyState: 'complete', addEventListener() {} },
+  Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 },
+  MutationObserver: class { observe() {} },
+  console,
+  Set,
+};
+ctx.window = ctx;
+vm.runInNewContext(scriptSrc, ctx);
+
+const result = {
+  sidebar2d: sidebarSpan2d.textContent,
+  sidebar5h: sidebarSpan5h.textContent,
+  sidebarAgo: sidebarSpanAgo.textContent,
+  ui2D: uiSpan2D.textContent,
+  ui3D: uiSpan3D.textContent,
+  ui1M: uiSpan1M.textContent,
+  ui2H: uiSpan2H.textContent,
+  ui5S: uiSpan5S.textContent,
+  uiWorking: uiSpanWorking.textContent,
+  uiWorkDir: uiSpanWorkDir.textContent,
+  uiThought: uiSpanThought.textContent,
+  uiBtnSave: uiBtnSave.textContent,
+  uiTextInputVal: uiTextInput.value,
+  uiTextInputPh: uiTextInput.placeholder,
+  uiTextareaPh: uiTextarea.placeholder,
+  uiTextareaTxt: uiTextarea.textContent,
+  proseP: proseP.textContent,
+  proseTd: proseTd.textContent,
+  proseStrong: proseStrong.textContent,
+  proseWorking: proseWorking.textContent,
+  userText: userText.textContent,
+  userErr: userErr.textContent,
+  plainTd5h: plainTd5h.textContent,
+  plainTdBool: plainTdBool.textContent,
+  agy5h: agy5h.textContent,
+};
+console.log(JSON.stringify(result));
+"""
+        with tempfile.TemporaryDirectory() as td:
+            js_file = Path(td) / "loc.js"
+            harness_file = Path(td) / "harness.cjs"
+            js_file.write_text(Patcher.DOM_TRANSLATOR_INJECTION, encoding="utf-8")
+            harness_file.write_text(harness, encoding="utf-8")
+            proc = subprocess.run(
+                [node_exe, str(harness_file), str(js_file)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=True,
+            )
+            res = json.loads(proc.stdout.strip())
+
+        # UI chrome relative time & labels still translate
+        self.assertEqual(res["sidebar2d"], "2天前")
+        self.assertEqual(res["sidebar5h"], "5小时前")
+        self.assertEqual(res["sidebarAgo"], "3天前")
+        self.assertEqual(res["uiWorking"], "运行中...")
+        self.assertEqual(res["uiWorkDir"], "Working directory")
+        self.assertEqual(res["uiThought"], "思考耗时 5秒")
+        self.assertEqual(res["uiBtnSave"], "保存")
+
+        # Uppercase 2D/3D/1M/2H/5S are never corrupted anywhere
+        self.assertEqual(res["ui2D"], "2D")
+        self.assertEqual(res["ui3D"], "3D")
+        self.assertEqual(res["ui1M"], "1M")
+        self.assertEqual(res["ui2H"], "2H")
+        self.assertEqual(res["ui5S"], "5S")
+
+        # Input/textarea placeholders translate, but user-typed text/value never mutates
+        self.assertEqual(res["uiTextInputVal"], "error")
+        self.assertEqual(res["uiTextInputPh"], "搜索")
+        self.assertEqual(res["uiTextareaPh"], "搜索")
+        self.assertEqual(res["uiTextareaTxt"], "2d")
+
+        # Chat markdown replies, user messages, plain tables, and AGY monitor are untouched
+        self.assertEqual(res["proseP"], "2D")
+        self.assertEqual(res["proseTd"], "true")
+        self.assertEqual(res["proseStrong"], "2d")
+        self.assertEqual(res["proseWorking"], "Working...")
+        self.assertEqual(res["userText"], "3D")
+        self.assertEqual(res["userErr"], "error")
+        self.assertEqual(res["plainTd5h"], "5h")
+        self.assertEqual(res["plainTdBool"], "false")
+        self.assertEqual(res["agy5h"], "5h")
+
 
 if __name__ == "__main__":
     unittest.main()

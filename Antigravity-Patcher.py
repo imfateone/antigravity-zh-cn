@@ -1540,10 +1540,12 @@ DOM_TRANSLATOR_INJECTION = r"""
     ["See our", "查看我们的 "]
   ];
 
-  function translateText(text) {
+  function translateText(text, opts) {
     if (!text || typeof text !== 'string') return text;
     let trimmed = text.trim();
     if (!trimmed) return text;
+    const allowBareRelTime = !opts || opts.allowBareRelTime !== false;
+    const allowCoreWords = !opts || opts.allowCoreWords !== false;
 
     if (dictionary[trimmed]) {
       return text.replace(trimmed, dictionary[trimmed]);
@@ -1653,7 +1655,7 @@ DOM_TRANSLATOR_INJECTION = r"""
         .trim();
       return text.replace(trimmed, "将在 " + timeStr + " 后重置");
     }
-    if (/^Exploring\b/i.test(trimmed) || /running command/i.test(trimmed)) {
+    if ((/^Exploring\b/i.test(trimmed) || /running command/i.test(trimmed)) && trimmed.length <= 120) {
       let translatedActions = trimmed
         .replace(/Exploring file/gi, "浏览文件")
         .replace(/running command/gi, "运行命令")
@@ -1692,10 +1694,18 @@ DOM_TRANSLATOR_INJECTION = r"""
     if (text.indexOf("is now available on paid Pro and Ultra plans") !== -1 || text.indexOf("Third-party model access will no longer be available") !== -1) {
       return "Sonnet 5.5 现已在付费的 Pro 和 Ultra 方案中提供。从 2026 年 11 月 2 日起，您当前的方案将不再支持访问第三方模型。";
     }
-    if ((m = trimmed.match(/^(\d+)\s*s(?:\s*ago)?$/i))) return text.replace(trimmed, m[1] + "秒前");
-    if ((m = trimmed.match(/^(\d+)\s*m(?:\s*ago)?$/i))) return text.replace(trimmed, m[1] + "分钟前");
-    if ((m = trimmed.match(/^(\d+)\s*h(?:\s*ago)?$/i))) return text.replace(trimmed, m[1] + "小时前");
-    if ((m = trimmed.match(/^(\d+)\s*d(?:\s*ago)?$/i))) return text.replace(trimmed, m[1] + "天前");
+    // Relative time: explicit "ago" allows case-insensitive units; bare short units (e.g. "2d", "5h")
+    // require strict lowercase without whitespace and UI-only context to avoid corrupting 2D/3D/1M/2H/5S.
+    if ((m = trimmed.match(/^(\d+)\s*s\s+ago$/i))) return text.replace(trimmed, m[1] + "秒前");
+    if ((m = trimmed.match(/^(\d+)\s*m\s+ago$/i))) return text.replace(trimmed, m[1] + "分钟前");
+    if ((m = trimmed.match(/^(\d+)\s*h\s+ago$/i))) return text.replace(trimmed, m[1] + "小时前");
+    if ((m = trimmed.match(/^(\d+)\s*d\s+ago$/i))) return text.replace(trimmed, m[1] + "天前");
+    if (allowBareRelTime) {
+      if ((m = trimmed.match(/^(\d+)s$/))) return text.replace(trimmed, m[1] + "秒前");
+      if ((m = trimmed.match(/^(\d+)m$/))) return text.replace(trimmed, m[1] + "分钟前");
+      if ((m = trimmed.match(/^(\d+)h$/))) return text.replace(trimmed, m[1] + "小时前");
+      if ((m = trimmed.match(/^(\d+)d$/))) return text.replace(trimmed, m[1] + "天前");
+    }
 
     // Dynamic Time Formatter
     if (text.indexOf("Worked for") !== -1) {
@@ -1710,8 +1720,8 @@ DOM_TRANSLATOR_INJECTION = r"""
         return "思考耗时 " + t;
       });
     }
-    if (text.indexOf("Working") !== -1) {
-      text = text.replace(/Working(\.*)/g, "运行中$1");
+    if ((m = trimmed.match(/^Working(\.{0,3})$/))) {
+      return text.replace(trimmed, "运行中" + m[1]);
     }
 
     // Special Multi-segment Matches
@@ -1759,15 +1769,111 @@ DOM_TRANSLATOR_INJECTION = r"""
     }
 
     // Short Word Exact Replacement
-    let wordsCount = trimmed.split(/\s+/).length;
-    if (wordsCount <= 3) {
-      let lowerText = trimmed.toLowerCase();
-      if (coreWords[lowerText]) {
-        return text.replace(trimmed, coreWords[lowerText]);
+    if (allowCoreWords) {
+      let wordsCount = trimmed.split(/\s+/).length;
+      if (wordsCount <= 3) {
+        let lowerText = trimmed.toLowerCase();
+        if (coreWords[lowerText]) {
+          return text.replace(trimmed, coreWords[lowerText]);
+        }
       }
     }
     
     return text;
+  }
+
+  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE', 'SVG', 'MATH', 'NOSCRIPT', 'TEMPLATE']);
+  const INPUT_EDIT_SELECTOR = 'textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]';
+  const SKIP_CONTENT_SELECTOR = [
+    'pre',
+    'code',
+    'svg',
+    'math',
+    '.monaco-editor',
+    '.xterm',
+    '.katex',
+    '.katex-display',
+    '.group\\/user-input-step',
+    '.prose',
+    '[class*="prose-"]',
+    '[class*="markdown"]',
+    '[class*="Markdown"]',
+    '[data-markdown]',
+    '[data-message-content]',
+    '[data-testid*="markdown"]',
+    '[data-testid*="message-content"]',
+    '[data-testid*="user-message"]',
+    '[data-testid*="assistant-message"]',
+    '#agy-monitor-footer-host',
+    '#agy-monitor-popover-host',
+    '[data-agy-turn-host]',
+    INPUT_EDIT_SELECTOR
+  ].join(', ');
+  const PROSE_TAG_SELECTOR = 'td, th, table, blockquote, article, strong, em, b, i, p, li, h1, h2, h3, h4, h5, h6, a';
+  const UI_CHROME_SELECTOR = 'button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], label, nav, aside, header';
+
+  function isSkippedElement(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+    if (SKIP_TAGS.has(el.tagName)) return true;
+    try {
+      if (el.closest && el.closest(SKIP_CONTENT_SELECTOR)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function isInputEditElement(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+    try {
+      return Boolean(el.matches && el.matches(INPUT_EDIT_SELECTOR));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function textTranslateOptsFor(parentEl) {
+    if (!parentEl || !parentEl.closest) return { allowBareRelTime: true, allowCoreWords: true };
+    try {
+      const inProseTag = Boolean(parentEl.closest(PROSE_TAG_SELECTOR));
+      if (!inProseTag) return { allowBareRelTime: true, allowCoreWords: true };
+      const inUiChrome = Boolean(parentEl.closest(UI_CHROME_SELECTOR));
+      return {
+        allowBareRelTime: false,
+        allowCoreWords: inUiChrome
+      };
+    } catch (e) {
+      return { allowBareRelTime: true, allowCoreWords: true };
+    }
+  }
+
+  function translateElementAttrs(node) {
+    const attrOpts = { allowBareRelTime: false, allowCoreWords: true };
+    if (node.placeholder) {
+      const translated = translateText(node.placeholder, attrOpts);
+      if (translated !== node.placeholder) {
+        node.placeholder = translated;
+      }
+    }
+    if (node.title) {
+      const translated = translateText(node.title, attrOpts);
+      if (translated !== node.title) {
+        node.title = translated;
+      }
+    }
+    if (node.getAttribute) {
+      const ariaLabel = node.getAttribute('aria-label');
+      if (ariaLabel) {
+        const translated = translateText(ariaLabel, attrOpts);
+        if (translated !== ariaLabel) node.setAttribute('aria-label', translated);
+      }
+      const tooltip = node.getAttribute('data-tooltip') || node.getAttribute('data-title');
+      if (tooltip) {
+        const translated = translateText(tooltip, attrOpts);
+        if (translated !== tooltip) {
+          if (node.hasAttribute('data-tooltip')) node.setAttribute('data-tooltip', translated);
+          if (node.hasAttribute('data-title')) node.setAttribute('data-title', translated);
+        }
+      }
+    }
   }
 
   function checkEmptyContainer(el) {
@@ -1817,52 +1923,34 @@ DOM_TRANSLATOR_INJECTION = r"""
   function processNode(node) {
     if (!node) return;
     if (node.nodeType === Node.TEXT_NODE) {
-      // Avoid modifying code snippets, terminal streams or editor content
-      if (node.parentElement && node.parentElement.closest && node.parentElement.closest('pre, code, .monaco-editor, .xterm')) {
+      // Never modify chat replies, user messages, editable inputs, code, terminal, math, or monitor widgets
+      const parentEl = node.parentElement;
+      if (isSkippedElement(parentEl)) {
         return;
       }
-      if (node.parentElement) {
-        if (checkEmptyContainer(node.parentElement) ||
-            (node.parentElement.parentElement && checkEmptyContainer(node.parentElement.parentElement))) {
+      if (parentEl) {
+        if (checkEmptyContainer(parentEl) ||
+            (parentEl.parentElement && checkEmptyContainer(parentEl.parentElement))) {
           return;
         }
       }
-      const translated = translateText(node.textContent);
+      const translated = translateText(node.textContent, textTranslateOptsFor(parentEl));
       if (translated !== node.textContent) {
         node.textContent = translated;
       }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
-      if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE' || node.tagName === 'CODE' || node.tagName === 'PRE') return;
+      if (SKIP_TAGS.has(node.tagName)) return;
+      if (isInputEditElement(node)) {
+        // Translate UI placeholder/aria-label on editors, but never mutate user-typed content inside
+        translateElementAttrs(node);
+        return;
+      }
+      if (isSkippedElement(node)) return;
       if (checkEmptyContainer(node)) return;
-      if (node.placeholder) {
-        const translated = translateText(node.placeholder);
-        if (translated !== node.placeholder) {
-          node.placeholder = translated;
-        }
-      }
-      if (node.title) {
-        const translated = translateText(node.title);
-        if (translated !== node.title) {
-          node.title = translated;
-        }
-      }
-      if (node.getAttribute) {
-        const ariaLabel = node.getAttribute('aria-label');
-        if (ariaLabel) {
-          const translated = translateText(ariaLabel);
-          if (translated !== ariaLabel) node.setAttribute('aria-label', translated);
-        }
-        const tooltip = node.getAttribute('data-tooltip') || node.getAttribute('data-title');
-        if (tooltip) {
-          const translated = translateText(tooltip);
-          if (translated !== tooltip) {
-            if (node.hasAttribute('data-tooltip')) node.setAttribute('data-tooltip', translated);
-            if (node.hasAttribute('data-title')) node.setAttribute('data-title', translated);
-          }
-        }
-      }
-      if ((node.tagName === 'INPUT' || node.tagName === 'BUTTON') && typeof node.value === 'string' && node.value) {
-        const translated = translateText(node.value);
+      translateElementAttrs(node);
+      const isBtnInput = node.tagName === 'INPUT' && /^(button|submit|reset)$/i.test(node.type || '');
+      if ((isBtnInput || node.tagName === 'BUTTON') && typeof node.value === 'string' && node.value) {
+        const translated = translateText(node.value, { allowBareRelTime: false, allowCoreWords: true });
         if (translated !== node.value) {
           node.value = translated;
         }
@@ -1878,6 +1966,7 @@ DOM_TRANSLATOR_INJECTION = r"""
   const observer = new MutationObserver((mutations) => {
     mutations.forEach(mutation => {
       if (mutation.type === 'childList') {
+        if (isSkippedElement(mutation.target)) return;
         mutation.addedNodes.forEach(node => {
           processNode(node);
         });
