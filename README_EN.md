@@ -8,7 +8,7 @@ An open-source Chinese localization patch for Google Antigravity Desktop
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](https://github.com/wangleiqwe/antigravity-zh-cn)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](https://github.com/imfateone/antigravity-zh-cn)
 
 </div>
 
@@ -34,7 +34,7 @@ An open-source Chinese localization patch for Google Antigravity Desktop
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/wangleiqwe/antigravity-zh-cn.git
+git clone https://github.com/imfateone/antigravity-zh-cn.git
 cd antigravity-zh-cn
 ```
 
