@@ -8,12 +8,12 @@
 
 如果您发现了 bug 或有功能建议，请：
 
-1. 先搜索 [Issues](https://github.com/MIMICTE/Antigravity-zh-CN/issues) 确认问题是否已存在
+1. 先搜索 [Issues](../../issues) 确认问题是否已存在
 2. 如果不存在，创建新的 Issue，并提供：
    - 清晰的问题描述
    - 复现步骤（如果是 bug）
    - 预期行为和实际行为
-   - 系统环境（Windows 版本、Python 版本、Antigravity 版本）
+   - 系统环境（操作系统版本、Python 版本、Antigravity 版本）
    - 截图（如果适用）
 
 ### 改进翻译
@@ -55,18 +55,18 @@
 | Agent | 智能体 | 不翻译为"代理" |
 | Workspace | 工作区 | 不翻译为"工作空间" |
 | Task | 任务 | - |
-| Artifact | 工件 | - |
+| Artifact | 产物 | - |
 | Settings | 设置 | 不翻译为"设置项" |
 | Model | 模型 | - |
-| Conversation | 对话 | 不翻译为"会话" |
+| Conversation | 对话 | - |
 
 ### 测试
 
 在提交 PR 前，请确保：
 
-1. 执行汉化脚本无报错
-2. Antigravity 能正常启动
-3. 主要界面元素已正确汉化
+1. 运行自动化测试全部通过：`uv run --no-project python -m unittest discover -s tests -v`
+2. 执行汉化脚本无报错，Antigravity 能正常启动
+3. 主要界面元素已正确汉化，且会话正文保持零写入
 4. 还原脚本能正常工作
 
 ## 行为准则
@@ -82,4 +82,4 @@
 
 ## 问题？
 
-如有任何疑问，欢迎在 [Discussions](https://github.com/MIMICTE/Antigravity-zh-CN/discussions) 中讨论。
+如有任何疑问，欢迎在 [Discussions](../../discussions) 中讨论。
