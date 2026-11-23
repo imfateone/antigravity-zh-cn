@@ -21,7 +21,7 @@ An open-source Chinese localization patch for Google Antigravity Desktop
 ## ✨ Key Features
 
 - 🚀 **Zero Dependencies** - Built-in pure Python ASAR parser and packer using only standard libraries, no Node.js or npm required
-- 🎯 **Smart UI Matching & Chat Content Immunity** - Translates only UI chrome while automatically skipping user message bubbles, assistant Markdown replies, math formulas, code/terminal blocks, editable input content, and monitor widgets—preventing chat tampering or false positives on technical tokens like `2D`/`3D`/`1M`
+- 🎯 **Chat-Zone Default Zero-Write & UI Slot Whitelist** - Uses persistent chat-pane host discovery and hard protection boundaries to enforce zero writes across user messages, bare/Markdown assistant replies, expanded thinking panels, artifact previews, code/terminal/math blocks, editable regions (including `contenteditable="plaintext-only"`), and form submission values; only allowlisted UI slots (app shell, Settings, step triggers, file summary bars, feedback row timestamps, dialog chrome) are updated via non-destructive `Text.data` and independent display attributes—zero `innerHTML` rewrites and no false positives on `2D`/`3D`/`1M`
 - ⚡ **One-Click Deployment** - Automatically handles process cleanup and software restart for a seamless "press Enter → enjoy Chinese" experience
 - 🛡️ **Clean & Reversible** - Complete removal of localization with restore script, ensuring "lossless rollback" to official English version at any time
 - 🧭 **Cross-Platform Compatibility** - Automatically detects OS environment, natively supporting path resolution and process management on both Windows and macOS
@@ -71,8 +71,11 @@ This project leverages Electron framework mechanisms:
 ### 1. Unpacked Patching
 Disables the official `app.asar` file, forcing the software to read from the unpacked `app` folder with injected localization code.
 
-### 2. Dynamic DOM Interception & Content Isolation
-Injects `MutationObserver` in `preload.js` to localize UI chrome in real time while short-circuiting chat replies, user bubbles, Markdown/table prose, math, code/terminal blocks, and user-typed input text.
+### 2. Chat Content Is Read-Only by Default
+
+The renderer verifies that a node belongs to a recognized UI slot before translating its `Text.data` or a display attribute. Messages, thinking panels, artifact previews, editors, and form values retain their original content. Thinking portals are protected by element identity, so a mounted panel stays protected after its trigger is removed.
+
+The global observer handles structure and a limited set of attributes. Text observation is attached only to authorized UI nodes, and local attribute observers track application assignments while a translated node is detached. Initial discovery, bulk cleanup, and translation run across animation frames with a 4 ms target budget per frame. In the Chromium fixtures, in-place prose streaming generated zero localization observer records, and structured prose inserts made zero subtree queries.
 
 ### 3. Native ASAR Parser
 Pure Python implementation of the ASAR file format parser with zero external dependencies, path-traversal protection, cross-process locking, and automatic rollback on failure.
@@ -81,13 +84,21 @@ Pure Python implementation of the ASAR file format parser with zero external dep
 ```bash
 python -m unittest discover -s tests -v
 ```
-Covers ASAR extraction security, patch/rollback flows, updater cache version guards, cross-process locking, and Node-backed DOM localization / content-immunity regression tests.
+Covers ASAR extraction, patch and restore, cross-process locking, dictionary keys, and pure text formatting. Install Node.js 22 or later and Chromium (such as Chrome or Edge) to run browser regressions for content writes, portal and node reuse, a 2,000-turn history, 2,000 text fragments, and 2,000 buttons at startup and on remount.
+
+### 5. Maintenance and Packaging
+
+- [Antigravity-Patcher.py](Antigravity-Patcher.py) handles installation, version changes, and injection. [Restore.py](Restore.py) handles restoration.
+- [catalog.js](antigravity_localization/renderer/catalog.js) contains the dictionary. [formatters.js](antigravity_localization/renderer/formatters.js) handles durations, statuses, and other text patterns.
+- [antigravity_dom.js](antigravity_localization/renderer/antigravity_dom.js) defines Antigravity's UI slots and protects content. [engine.js](antigravity_localization/renderer/engine.js) handles scheduling, writes, and node lifecycles.
+- [mount_walk.js](antigravity_localization/renderer/mount_walk.js) resumes discovery across frames when nodes are removed. [portal_registry.js](antigravity_localization/renderer/portal_registry.js) tracks thinking panels by element identity and mutation order.
+- [Antigravity-Patcher.spec](Antigravity-Patcher.spec) includes the renderer assets in the standalone binary. Run `uvx pyinstaller Antigravity-Patcher.spec` from the repository root.
 
 ## ⚠️ Known Limitations
 
-- **Thought Process in English** - Due to AI model's streaming output architecture, the agent's backend thinking logs (`Thought` process) cannot be localized, but all final responses and frontend UI elements are 100% localized
+- **Chat Prose & Thinking Logs Preserved Verbatim** - By design, user messages, assistant reply prose, expanded thinking logs, and artifact preview content are strictly zero-write to prevent tampering with code, technical tokens, or user data; only frontend UI chrome and verified control slots are localized
 - **Platform Support** - Fully supports Windows and macOS (Intel & Apple Silicon). Linux is currently not supported
-- **Version Specific** - Deeply optimized for Antigravity v2.21.1 with robust compatibility across versions
+- **Version specific** — The current DOM adapter targets Antigravity 2.34. UI slots that change after an update retain their original text until recognized.
 
 ## 📸 Screenshots
 
@@ -95,15 +106,15 @@ Covers ASAR extraction security, patch/rollback flows, updater cache version gua
 
 ![Antigravity Chinese Interface](antigravity-chinese.png)
 
-*Antigravity with Chinese interface - All text fully localized*
+*Example of the localized Antigravity interface*
 
 </div>
 
-**Fully localized interface includes:**
+**Examples of localized UI**
 - ✅ Sidebar menu (New conversation, History, Scheduled tasks, Projects)
 - ✅ Top navigation bar (File, Audio, Window)
 - ✅ Input placeholder text and model selector
-- ✅ All options and descriptions in Settings page
+- ✅ Supported options and descriptions in Settings
 - ✅ Underlying terminal permission request prompts and dynamic status text
 
 > 💡 Tip: To see the actual result, simply double-click `Antigravity-Patcher.exe` or `Antigravity-Patcher.py` to experience the complete Chinese interface!
@@ -190,7 +201,7 @@ A: Usually, this is not caused by the script, but by Electron's background proce
 <summary><b>Q: Can I still use this localization patch when the official Antigravity app updates?</b></summary>
 
 A: **Absolutely!** 
-Starting from v2.21.1, the script features an **OTA Smart Compatibility Mechanism**. When the official app updates, it releases new core files, and the localization will naturally temporarily revert to English. Simply **re-run the patcher**, and it will automatically detect the new version, clear the old unpacked cache, and re-extract and inject the localization into the latest official code. It is fully forward-compatible!
+Rerun the patcher after updating the client. It detects changes to the official bundle and extracts and patches the installed version. If the updated interface shows untranslated UI, the DOM adapter can be extended with the corresponding verified slots.
 </details>
 
 <details>
@@ -202,8 +213,8 @@ A: No. This patch only modifies UI text display and does not involve network com
 <details>
 <summary><b>Q: How to add new translations?</b></summary>
 
-A: Edit the `dictionary` in `Antigravity-Patcher.py` and add key-value pairs:
-```python
+A: Add key-value pairs to the `dictionary` in [catalog.js](antigravity_localization/renderer/catalog.js).
+```javascript
 "English Text": "中文翻译",
 ```
 Then re-run the patch script.

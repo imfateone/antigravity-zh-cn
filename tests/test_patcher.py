@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 REPO_DIR = Path(__file__).resolve().parent.parent
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
@@ -121,6 +122,22 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 (res_dir / "app" / "dist" / "preload.js").read_text(encoding="utf-8"),
             )
             self.assertEqual(_ag_common.read_installed_ag_version(str(app_dir)), "2.34.0")
+
+            # Existing installs must replace the previous renderer, even without an official update.
+            preload = res_dir / "app" / "dist" / "preload.js"
+            preload.write_text(
+                "console.log('preload');\n// Antigravity Chinese Localization Engine\nlegacyRenderer();\n",
+                encoding="utf-8",
+            )
+            with mock.patch.dict(os.environ, {"ANTIGRAVITY_APP_DIR": str(app_dir)}), \
+                 mock.patch.object(Patcher, "stop_antigravity_desktop_processes", lambda *a, **kw: None), \
+                 mock.patch.object(Patcher, "ensure_desktop_shortcut", lambda *a, **kw: None), \
+                 mock.patch.object(Patcher, "cleanup_stale_updater_cache", lambda *a, **kw: []):
+                self.assertTrue(Patcher.apply_patch(relaunch=False))
+            localized_preload = preload.read_text(encoding="utf-8")
+            self.assertEqual(localized_preload.count("// Antigravity Chinese Localization Engine"), 1)
+            self.assertNotIn("legacyRenderer", localized_preload)
+            self.assertIn(Patcher.DOM_TRANSLATOR_INJECTION, localized_preload)
 
             # Simulate an official update delivering a corrupt app.asar while unpacked app exists:
             # rollback must keep existing unpacked app & new app.asar intact and leave no staging dir.
@@ -265,219 +282,354 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 self.assertTrue(lock_path.is_file())
             self.assertFalse(lock_path.exists())
 
-    def test_localization_skips_chat_content_and_preserves_2d_3d_tokens(self):
-        """运行真实 DOM_TRANSLATOR_INJECTION JS，验证不篡改对话正文与 2D/3D/1M/2H，同时正常汉化 UI 壳子。"""
+    def test_dictionary_has_no_duplicate_keys_and_safe_dom_invariants(self):
+        """静态守卫：词典无重名覆盖，且注入脚本不含 innerHTML / .value 写入、dead shadowRoot 或全树 characterData。"""
+        import re
+
+        js = Patcher.DOM_TRANSLATOR_INJECTION
+        m = re.search(r"const dictionary = \{(.*?)\n\};", js, re.S)
+        self.assertIsNotNone(m, "dictionary block missing")
+        seen: dict[str, str] = {}
+        dups: list[str] = []
+        for km in re.finditer(r'"((?:\\.|[^"\\])*)"\s*:\s*"((?:\\.|[^"\\])*)"', m.group(1)):
+            k = km.group(1)
+            if k in seen:
+                dups.append(k)
+            seen[k] = km.group(2)
+        self.assertEqual(dups, [], f"Duplicate dictionary keys found: {dups}")
+        self.assertGreater(len(seen), 1500)
+
+        # Hard architectural invariants from Codex P0/P1/P2 review
+        self.assertNotIn("innerHTML", js)
+        self.assertNotIn("checkEmptyContainer", js)
+        self.assertNotIn("node.value =", js)
+        self.assertNotIn("node.shadowRoot", js)
+        self.assertIn("new Map(Object.entries(dictionary))", js)
+        self.assertIn("'data-title'", js)
+        # bodyObserver must NOT observe characterData on document.body
+        body_obs_match = re.search(r"bodyObserver\.observe\(document\.body,\s*\{(.*?)\}\)", js, re.S)
+        self.assertIsNotNone(body_obs_match)
+        self.assertNotIn("characterData", body_obs_match.group(1))
+
+    def test_formatter_module_in_node(self):
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node not installed")
+        subprocess.run(
+            [node, str(FIXTURES_DIR / "formatters.cjs"),
+             str(REPO_DIR / "antigravity_localization" / "renderer")],
+            check=True,
+        )
+
+    @staticmethod
+    def _find_chromium_exe() -> str | None:
+        import shutil
+
+        candidates = [
+            shutil.which("chrome"),
+            shutil.which("chromium"),
+            shutil.which("msedge"),
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ]
+        for c in candidates:
+            if c and os.path.isfile(c):
+                return c
+        return None
+
+    def _run_in_headless_chromium(self, html_content: str) -> dict:
         import shutil
         import subprocess
 
         node_exe = shutil.which("node")
-        if not node_exe:
-            self.skipTest("node not installed")
+        chrome_exe = self._find_chromium_exe()
+        if not node_exe or not chrome_exe:
+            self.skipTest("node or headless Chromium not installed")
 
-        harness = r"""
-const fs = require('node:fs');
-const vm = require('node:vm');
-const scriptSrc = fs.readFileSync(process.argv[2], 'utf8');
-
-function matchSingle(el, sel) {
-  sel = sel.trim();
-  if (!sel || !el || el.nodeType !== 1) return false;
-  if (sel.startsWith('#')) return el.id === sel.slice(1);
-  if (sel.startsWith('.')) {
-    const cls = sel.slice(1).replace(/\\/g, '');
-    return String(el.className || '').split(/\s+/).includes(cls);
-  }
-  const attrEq = sel.match(/^\[([^=\]]+)="([^"]*)"\]$/);
-  if (attrEq) return el.getAttribute(attrEq[1]) === attrEq[2];
-  const attrContains = sel.match(/^\[([^=\]]+)\*="([^"]*)"\]$/);
-  if (attrContains) {
-    const v = attrContains[1] === 'class' ? String(el.className || '') : String(el.getAttribute(attrContains[1]) || '');
-    return v.includes(attrContains[2]);
-  }
-  const attrHas = sel.match(/^\[([^\]]+)\]$/);
-  if (attrHas) return el.hasAttribute(attrHas[1]);
-  return el.tagName === sel.toUpperCase();
-}
-
-function makeEl(tag, opts = {}) {
-  const attrs = Object.assign({}, opts.attrs || {});
-  const el = {
-    nodeType: 1,
-    tagName: tag.toUpperCase(),
-    id: opts.id || '',
-    className: opts.className || '',
-    type: opts.type || '',
-    placeholder: opts.placeholder || '',
-    title: opts.title || '',
-    value: opts.value || '',
-    parentElement: null,
-    childNodes: [],
-    appendChild(child) {
-      child.parentElement = el;
-      el.childNodes.push(child);
-      return child;
-    },
-    getAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null; },
-    setAttribute(k, v) { attrs[k] = String(v); },
-    hasAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k); },
-    matches(selector) {
-      return selector.split(',').some(part => matchSingle(el, part));
-    },
-    closest(selector) {
-      let cur = el;
-      while (cur) {
-        if (cur.matches(selector)) return cur;
-        cur = cur.parentElement;
-      }
-      return null;
-    },
-    querySelector() { return null; },
-    get textContent() {
-      return el.childNodes.map(c => c.textContent).join('');
-    },
-  };
-  return el;
-}
-
-function makeText(s) {
-  return { nodeType: 3, textContent: s, parentElement: null };
-}
-
-const body = makeEl('body');
-
-// 1. UI chrome (MUST translate)
-const sidebarSpan2d = makeEl('span'); sidebarSpan2d.appendChild(makeText('2d'));
-const sidebarSpan5h = makeEl('span'); sidebarSpan5h.appendChild(makeText('5h'));
-const sidebarSpanAgo = makeEl('span'); sidebarSpanAgo.appendChild(makeText('3d ago'));
-const uiSpan2D = makeEl('span'); uiSpan2D.appendChild(makeText('2D'));
-const uiSpan3D = makeEl('span'); uiSpan3D.appendChild(makeText('3D'));
-const uiSpan1M = makeEl('span'); uiSpan1M.appendChild(makeText('1M'));
-const uiSpan2H = makeEl('span'); uiSpan2H.appendChild(makeText('2H'));
-const uiSpan5S = makeEl('span'); uiSpan5S.appendChild(makeText('5S'));
-const uiSpanWorking = makeEl('span'); uiSpanWorking.appendChild(makeText('Working...'));
-const uiSpanWorkDir = makeEl('span'); uiSpanWorkDir.appendChild(makeText('Working directory'));
-const uiSpanThought = makeEl('span'); uiSpanThought.appendChild(makeText('Thought for 5s'));
-const uiBtnSave = makeEl('button'); uiBtnSave.appendChild(makeText('Save'));
-const uiTextInput = makeEl('input', { type: 'text', value: 'error', placeholder: 'Search' });
-const uiTextarea = makeEl('textarea', { placeholder: 'Search' });
-uiTextarea.appendChild(makeText('2d'));
-
-// 2. Chat markdown & user bubble & AGY monitor (MUST NOT translate content)
-const prose = makeEl('div', { className: 'prose prose-sm' });
-const proseP = makeEl('p'); proseP.appendChild(makeText('2D'));
-const proseTd = makeEl('td'); proseTd.appendChild(makeText('true'));
-const proseStrong = makeEl('strong'); proseStrong.appendChild(makeText('2d'));
-const proseWorking = makeEl('span'); proseWorking.appendChild(makeText('Working...'));
-prose.appendChild(proseP); prose.appendChild(proseTd); prose.appendChild(proseStrong); prose.appendChild(proseWorking);
-
-const userBubble = makeEl('div', { className: 'group/user-input-step' });
-const userText = makeEl('div'); userText.appendChild(makeText('3D'));
-const userErr = makeEl('span'); userErr.appendChild(makeText('error'));
-userBubble.appendChild(userText); userBubble.appendChild(userErr);
-
-const plainTable = makeEl('table');
-const plainTd5h = makeEl('td'); plainTd5h.appendChild(makeText('5h'));
-const plainTdBool = makeEl('td'); plainTdBool.appendChild(makeText('false'));
-plainTable.appendChild(plainTd5h); plainTable.appendChild(plainTdBool);
-
-const agyHost = makeEl('div', { id: 'agy-monitor-footer-host' });
-const agy5h = makeEl('span'); agy5h.appendChild(makeText('5h'));
-agyHost.appendChild(agy5h);
-
-for (const n of [
-  sidebarSpan2d, sidebarSpan5h, sidebarSpanAgo,
-  uiSpan2D, uiSpan3D, uiSpan1M, uiSpan2H, uiSpan5S,
-  uiSpanWorking, uiSpanWorkDir, uiSpanThought, uiBtnSave,
-  uiTextInput, uiTextarea,
-  prose, userBubble, plainTable, agyHost,
-]) body.appendChild(n);
-
-const ctx = {
-  window: {},
-  document: { body, readyState: 'complete', addEventListener() {} },
-  Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 },
-  MutationObserver: class { observe() {} },
-  console,
-  Set,
-};
-ctx.window = ctx;
-vm.runInNewContext(scriptSrc, ctx);
-
-const result = {
-  sidebar2d: sidebarSpan2d.textContent,
-  sidebar5h: sidebarSpan5h.textContent,
-  sidebarAgo: sidebarSpanAgo.textContent,
-  ui2D: uiSpan2D.textContent,
-  ui3D: uiSpan3D.textContent,
-  ui1M: uiSpan1M.textContent,
-  ui2H: uiSpan2H.textContent,
-  ui5S: uiSpan5S.textContent,
-  uiWorking: uiSpanWorking.textContent,
-  uiWorkDir: uiSpanWorkDir.textContent,
-  uiThought: uiSpanThought.textContent,
-  uiBtnSave: uiBtnSave.textContent,
-  uiTextInputVal: uiTextInput.value,
-  uiTextInputPh: uiTextInput.placeholder,
-  uiTextareaPh: uiTextarea.placeholder,
-  uiTextareaTxt: uiTextarea.textContent,
-  proseP: proseP.textContent,
-  proseTd: proseTd.textContent,
-  proseStrong: proseStrong.textContent,
-  proseWorking: proseWorking.textContent,
-  userText: userText.textContent,
-  userErr: userErr.textContent,
-  plainTd5h: plainTd5h.textContent,
-  plainTdBool: plainTdBool.textContent,
-  agy5h: agy5h.textContent,
-};
-console.log(JSON.stringify(result));
-"""
         with tempfile.TemporaryDirectory() as td:
-            js_file = Path(td) / "loc.js"
-            harness_file = Path(td) / "harness.cjs"
+            root = Path(td)
+            ud = root / "profile"
+            js_file = root / "loc.js"
+            html_file = root / "page.html"
+            runner_file = FIXTURES_DIR / "chromium_runner.cjs"
             js_file.write_text(Patcher.DOM_TRANSLATOR_INJECTION, encoding="utf-8")
-            harness_file.write_text(harness, encoding="utf-8")
+            html_contents = html_content.replace("__LOC_JS_URL__", js_file.as_uri())
+            fixture_script = FIXTURES_DIR / "antigravity_dom_fixture.js"
+            html_contents = html_contents.replace("__FIXTURE_JS_URL__", fixture_script.as_uri())
+            html_file.write_text(html_contents, encoding="utf-8")
             proc = subprocess.run(
-                [node_exe, str(harness_file), str(js_file)],
+                [node_exe, str(runner_file), chrome_exe, html_file.as_uri(), str(ud)],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
-                check=True,
+                timeout=35,
             )
-            res = json.loads(proc.stdout.strip())
+            if proc.returncode != 0:
+                self.fail(f"Chromium runner failed (rc={proc.returncode}): {proc.stderr}")
+            data = json.loads(proc.stdout.strip())
+            if "__error" in data:
+                self.fail(f"Browser test threw error: {data['__error']}")
+            return data
 
-        # UI chrome relative time & labels still translate
-        self.assertEqual(res["sidebar2d"], "2天前")
-        self.assertEqual(res["sidebar5h"], "5小时前")
-        self.assertEqual(res["sidebarAgo"], "3天前")
-        self.assertEqual(res["uiWorking"], "运行中...")
-        self.assertEqual(res["uiWorkDir"], "Working directory")
-        self.assertEqual(res["uiThought"], "思考耗时 5秒")
-        self.assertEqual(res["uiBtnSave"], "保存")
+    def test_chromium_p0_p1_p2_full_regression(self):
+        """真实无头 Chromium 浏览器全量回归：覆盖 Codex 全部 P0/P1/P2 复现与正向 UI 槽位。"""
+        html = (FIXTURES_DIR / "localization.html").read_text(encoding="utf-8")
 
-        # Uppercase 2D/3D/1M/2H/5S are never corrupted anywhere
-        self.assertEqual(res["ui2D"], "2D")
-        self.assertEqual(res["ui3D"], "3D")
-        self.assertEqual(res["ui1M"], "1M")
-        self.assertEqual(res["ui2H"], "2H")
-        self.assertEqual(res["ui5S"], "5S")
+        res = self._run_in_headless_chromium(html)
 
-        # Input/textarea placeholders translate, but user-typed text/value never mutates
-        self.assertEqual(res["uiTextInputVal"], "error")
-        self.assertEqual(res["uiTextInputPh"], "搜索")
-        self.assertEqual(res["uiTextareaPh"], "搜索")
-        self.assertEqual(res["uiTextareaTxt"], "2d")
+        # App shell & Settings positive localization
+        self.assertEqual(res["sb2d"], "2天前")
+        self.assertEqual(res["sb5h"], "5小时前")
+        self.assertEqual(res["sbAgo"], "3天前")
+        self.assertEqual(res["sb2D"], "2D")
+        self.assertEqual(res["sb3D"], "3D")
+        self.assertEqual(res["sbEmpty"], "暂无项目")
+        self.assertEqual(res["sidebarAction"], "新建对话")
+        self.assertEqual(res["sidebarUserTitle"], "Open")
+        self.assertEqual(res["sidebarUserTooltip"], "Open")
+        self.assertEqual(res["sidebarCustomName"], "Editing app.py")
+        self.assertEqual(res["titlebarAction"], "打开")
+        self.assertEqual(res["titlebarUserTitle"], "Settings")
+        self.assertEqual(res["titlebarUserTooltip"], "Settings")
+        self.assertTrue(res["origEmptySvgConnected"])
+        self.assertEqual(res["setH2"], "设置")
+        self.assertEqual(res["setP"], "管理您的系统与声音通知偏好")
+        self.assertEqual(res["setTh"], "操作")
+        self.assertEqual(res["setTdOpen"], "打开设置")
+        self.assertEqual(res["setTd2d"], "2d")
 
-        # Chat markdown replies, user messages, plain tables, and AGY monitor are untouched
-        self.assertEqual(res["proseP"], "2D")
-        self.assertEqual(res["proseTd"], "true")
-        self.assertEqual(res["proseStrong"], "2d")
-        self.assertEqual(res["proseWorking"], "Working...")
-        self.assertEqual(res["userText"], "3D")
-        self.assertEqual(res["userErr"], "error")
-        self.assertEqual(res["plainTd5h"], "5h")
-        self.assertEqual(res["plainTdBool"], "false")
-        self.assertEqual(res["agy5h"], "5h")
+        # P0 destructive rules & P1 prototype pollution
+        self.assertEqual(res["diagSee"], "See our server response: custom trace.")
+        self.assertEqual(res["diagPatch"], "Patch note: No projects found in the log.")
+        self.assertEqual(res["diagReq"], "It requires Node 20 to be installed.")
+        self.assertEqual(res["diagThought"], "Thought for a while testing")
+        self.assertEqual(res["diagWorked"], "Worked for fun")
+        self.assertEqual(res["diagPrefixTrunc"], "Confirming this undo action will make the following changes: custom trace must stay.")
+        self.assertEqual(res["diagSettingsTrunc"], "Manage your notification preferences: custom note must stay.")
+        self.assertEqual(res["diagEllipsisTrunc"], "Manage your notification preferences only in this workspace…")
+        self.assertEqual(res["diagGeminiLong"], "Gemini 4 Argon is now available in preview with custom quota details.")
+        self.assertEqual(res["proto1"], "__proto__")
+        self.assertEqual(res["proto2"], "hasOwnProperty")
+        self.assertEqual(res["proto3"], "constructor")
+        self.assertEqual(res["afterProto"], "设置")
+
+        # P0 editable, checkEmptyContainer deletion & NotFoundError
+        self.assertEqual(res["cePlain"], "Settings")
+        self.assertEqual(res["ceProseText"], "Open")
+        self.assertEqual(res["ceProseAria"], "Search")
+        self.assertEqual(res["proseEmpty"], "No projects found")
+        self.assertTrue(res["draftConnected"])
+        self.assertEqual(res["draftVal"], "my draft")
+        self.assertEqual(res["draftPh"], "搜索")
+        self.assertTrue(res["removeChildOk"])
+
+        # P0 role="button" preview protection (marked + unmarked)
+        self.assertEqual(res["previewTd"], "Settings")
+        self.assertEqual(res["previewBq"], "Open")
+        self.assertEqual(res["previewP"], "Save")
+        self.assertEqual(res["previewSpan"], "Review")
+        self.assertEqual(res["unmarkedPreviewH1"], "Open")
+        self.assertEqual(res["unmarkedPreviewP"], "Settings")
+
+        # P0/P2 independent data-tooltip vs data-title & fault isolation
+        self.assertEqual(res["tipTooltip"], "设置")
+        self.assertEqual(res["tipInitialDataTitle"], "Custom Keep")
+        self.assertEqual(res["tipUpdatedDataTitle"], "打开")
+        self.assertEqual(res["tipText"], "保存")
+        self.assertEqual(res["faultGoodBtn"], "运行耗时 42秒")
+
+        # P0 form submission values preserved (ALL native <option> untouched, even after removing value!)
+        self.assertEqual(res["formIntent"], "delete")
+        self.assertEqual(res["formBtnText"], "删除")
+        self.assertEqual(res["formInputVal"], "Save")
+        self.assertEqual(res["optImplicitText"], "Open")
+        self.assertEqual(res["formSelectMode"], "Close")
+        self.assertEqual(res["optNestedMode"], "Open")
+        self.assertEqual(res["optNestedSpanText"], "Open")
+        self.assertEqual(res["optExplicitText"], "Close")
+        self.assertEqual(res["optExplicitVal"], "Close")
+
+        # P1 positive UI slots inside chat & dynamic Composer button & unreset prose restoration
+        self.assertEqual(res["btnWorked"], "运行耗时 22秒")
+        self.assertEqual(res["migratedText"], "Worked for 99s")
+        self.assertEqual(res["unresetInitial"], "运行耗时 7秒")
+        self.assertEqual(res["unresetProseText"], "Worked for 7s")
+        self.assertEqual(res["btnThought"], "思考耗时 1分 5秒 >")
+        self.assertEqual(res["btnThoughtLate"], "思考耗时 8秒")
+        self.assertEqual(res["btnExplored"], "已浏览 2 个文件")
+        self.assertEqual(res["btnEditing"], "正在编辑 foo$&bar.py +3 -1")
+        self.assertEqual(res["sumSingle"], "2 个文件已修改 +99 -23 >")
+        self.assertEqual(res["sumReview1"], "审阅")
+        self.assertEqual(res["sumSplitLbl"], "2 个文件已修改")
+        self.assertEqual(res["sumSplitAdd"], "+99")
+        self.assertEqual(res["sumSplitDel"], "-23")
+        self.assertEqual(res["sumReview2"], "审阅")
+        self.assertEqual(res["dlgTitle"], "允许写入此路径吗？")
+        self.assertEqual(res["dlgCode"], "/tmp/Settings")
+        self.assertEqual(res["dlgDiag"], "See our server response: custom trace.")
+        self.assertEqual(res["dlgAllow"], "是，仅本次允许")
+        self.assertEqual(res["confirmTitle"], "确认撤销")
+        self.assertEqual(res["confirmInfo"], "确认此撤销操作将做出以下更改：")
+        self.assertEqual(res["confirmPath"], "Review")
+        self.assertEqual(res["confirmButton"], "确认")
+        self.assertEqual(res["fbCopy"], "复制")
+        self.assertEqual(res["fbGood"], "好的回答")
+        self.assertEqual(res["fbBad"], "差的回答")
+        self.assertEqual(res["agyTurnPill"], "用量 1.9M tok")
+        self.assertEqual(res["tsInitial"], "刚刚")
+        self.assertEqual(res["tsUpdated"], "2分钟前")
+        self.assertEqual(res["compPh"], "搜索")
+        self.assertEqual(res["compOverlay"], "输入任何问题，使用 @ 提及")
+        self.assertEqual(res["compLexical"], "Settings")
+        self.assertEqual(res["compVal"], "draft")
+        self.assertEqual(res["compSend"], "发送")
+        self.assertEqual(res["compSendUpdated"], "停止")
+
+        # P0 bare unclassed AI reply & Round-2 prose slot bypasses all zero-write
+        self.assertEqual(res["userMsg"], "Settings")
+        self.assertEqual(res["bareSettings"], "Settings")
+        self.assertEqual(res["bare2m"], "2m")
+        self.assertEqual(res["bareFalse"], "false")
+        self.assertEqual(res["bareJustNow"], "Just now")
+        self.assertEqual(res["bare3dAgo"], "3d ago")
+        self.assertEqual(res["bareWorking"], "Working...")
+        self.assertEqual(res["bareReview"], "Review")
+        self.assertEqual(res["bareEmpty"], "No projects found")
+        self.assertEqual(res["bareSummaryProse"], "2 files changed +99 -23 >")
+        self.assertEqual(res["bareDirectHost"], "Settings")
+        self.assertEqual(res["prosePBtnText"], "Review")
+        self.assertEqual(res["prosePBtnAria"], "Settings")
+        self.assertEqual(res["proseHdrSettings"], "Settings")
+        self.assertEqual(res["proseHdrReview"], "Review")
+        self.assertEqual(res["proseDlgSettings"], "Settings")
+        self.assertEqual(res["proseDlgReview"], "Review")
+        self.assertEqual(res["proseDlgTrunc"], "Confirming this undo action will make the following changes: custom trace must stay.")
+        self.assertEqual(res["proseFakeFbBtnText"], "Good response")
+        self.assertEqual(res["proseFakeFbBtnAria"], "Good response")
+        self.assertEqual(res["proseFakeFbTs"], "2m")
+        self.assertEqual(res["proseFakeSumLbl"], "2 files changed")
+        self.assertEqual(res["proseFakeSumBtn"], "Review")
+        self.assertEqual(res["bareRoleBtnReview"], "Review")
+
+        # P0 virtual unmount, deep nesting, empty chat w/ nav, history w/ aside + new turn, portals, artifact & migration
+        self.assertEqual(res["virtDeepP"], "Review")
+        self.assertEqual(res["virtDeepBare"], "Open")
+        self.assertEqual(res["virtNewDiv"], "Settings")
+        self.assertEqual(res["virtNewSpan"], "2m")
+        self.assertEqual(res["emptyChatSettings"], "Settings")
+        self.assertEqual(res["emptyChat2m"], "2m")
+        self.assertEqual(res["histAiSettings"], "Settings")
+        self.assertEqual(res["histNewTurn"], "Settings")
+        self.assertEqual(res["tpSettings"], "Settings")
+        self.assertEqual(res["tp2m"], "2m")
+        self.assertEqual(res["lateTpSettings"], "Settings")
+        self.assertEqual(res["lateTp2m"], "2m")
+        self.assertEqual(res["lateTpAfterUnmount"], "Settings")
+        self.assertEqual(res["raceTpSettings"], "Settings")
+        self.assertEqual(res["raceTpTitle"], "Settings")
+        self.assertEqual(res["raceTp2m"], "2m")
+        self.assertEqual(res["raceBtnText"], "思考耗时 9秒")
+        self.assertEqual(res["artH1"], "Settings")
+        self.assertEqual(res["artBody"], "Open")
+        self.assertEqual(res["artContentBtn"], "Review")
+        self.assertEqual(res["artUnmarkedPreview"], "Review")
+        self.assertEqual(res["artClose"], "关闭")
+        self.assertEqual(res["dynArtH1"], "Settings")
+        self.assertEqual(res["iframeText"], "Settings")
+        self.assertEqual(res["relocCompProse"], "Settings")
+        self.assertEqual(res["detachedText"], "Settings")
+
+    def test_chromium_content_ownership_and_node_reuse(self):
+        html = (FIXTURES_DIR / "ownership.html").read_text(encoding="utf-8")
+        self.assertEqual(self._run_in_headless_chromium(html)["contentWrites"], 0)
+
+    def test_chromium_mutation_races(self):
+        html = (FIXTURES_DIR / "mutation_races.html").read_text(encoding="utf-8")
+        result = self._run_in_headless_chromium(html)
+        self.assertEqual(result.pop("migratedTextRecords"), 0, result)
+        for scenario, passed in result.items():
+            with self.subTest(scenario=scenario):
+                self.assertTrue(passed)
+
+    def test_chromium_portal_history_before_display_writes(self):
+        html = (FIXTURES_DIR / "portal_history.html").read_text(encoding="utf-8")
+        result = self._run_in_headless_chromium(html)
+        self.assertTrue(result["engineCallbackWasHeld"])
+        self.assertTrue(result["earlierShadowsTrailing"])
+        self.assertTrue(result["crossedFrame"])
+        self.assertTrue(result["mutationDuringSettlement"])
+        self.assertEqual(result["removedSubtreeScans"], 1)
+        ordinary_ui = {
+            "control_fake_outside_chat_localized",
+            "control_new_earlier_duplicate",
+            "control_id_reused_after_both_removed",
+            "control_new_earlier_for_preexisting",
+        }
+        self.assertTrue(ordinary_ui.issubset(result["cases"]))
+        for scenario, state in result["cases"].items():
+            with self.subTest(scenario=scenario):
+                translated = scenario in ordinary_ui
+                expected = "设置" if translated else "Settings"
+                self.assertEqual(state["text"], expected)
+                self.assertEqual(state["title"], expected)
+                self.assertEqual(state["writes"], 2 if translated else 0)
+
+    def test_chromium_streaming_performance_benchmark(self):
+        """真实无头 Chromium 性能与生命周期回归：原位流式、结构化流式、迁移解绑、2000 按钮批量挂载与重插复绑。"""
+        html = (FIXTURES_DIR / "streaming.html").read_text(encoding="utf-8")
+
+        res = self._run_in_headless_chromium(html)
+        for key in ("turns2000", "spans2000"):
+            m = res[key]
+            self.assertEqual(m["totalRecords"], 0, f"{key} received prose MutationRecords: {m}")
+            self.assertEqual(m["totalCbCalls"], 0, f"{key} invoked observer callbacks: {m}")
+            self.assertEqual(m["totalQsCalls"], 0, f"{key} executed querySelector during streaming: {m}")
+            self.assertEqual(m["finalText"], "No projects found", f"{key} mutated prose text: {m}")
+            self.assertLess(m["medianCbMs"], 2.0, f"{key} exceeded 2ms budget: {m}")
+
+        # Structured streaming (including inside chat role="dialog"!): 0 querySelector calls and 0 prose writes!
+        for key in ("structTurns", "structSpans", "structChatDialog", "structChatMenu"):
+            self.assertEqual(res[key]["qsCalls"], 0, f"{key} ran querySelector on structured prose: {res[key]}")
+            self.assertTrue(res[key]["untouched"], f"{key} mutated structured prose: {res[key]}")
+
+        # Migrated Text into .prose (both single node and >520-sibling subtree): 0 characterData records!
+        self.assertEqual(res["migratedBench"]["charDataRecords"], 0, res["migratedBench"])
+        self.assertEqual(res["migratedBench"]["finalText"], "Worked for 119s")
+        self.assertEqual(res["bigMigratedBench"]["restored"], "Worked for 17s", res["bigMigratedBench"])
+        self.assertEqual(res["bigMigratedBench"]["charDataRecords"], 0, res["bigMigratedBench"])
+        self.assertEqual(res["bigMigratedBench"]["finalText"], "Worked for 119s")
+
+        # 2,000-slot mount: zero disconnect storm, linear observe count, no 1s long task, detached button re-binds!
+        b = res["bulk2000"]
+        self.assertEqual(b["firstMount"], {"disconnects": 0, "observations": 2000}, b)
+        self.assertEqual(b["reorder"], {"disconnects": 0, "observations": 0, "writes": 0}, b)
+        self.assertEqual(b["remount"]["disconnects"], 2000, b)
+        self.assertEqual(b["remount"]["observations"], 2000, b)
+        self.assertTrue(b["remount"]["all2000Restored"], b)
+        self.assertTrue(b["remount"]["all2000Rebound"], b)
+        self.assertLess(b["maxRafMs"], 40.0, f"long task regressed: {b}")
+        self.assertTrue(b["all2000Translated"], f"not all 2000 buttons translated: {b}")
+        self.assertEqual(b["reinsertedBtnText"], "运行耗时 99秒", f"re-inserted button failed to re-bind: {b}")
+
+    def test_chromium_startup_2000_buttons_no_long_task(self):
+        """真实无头 Chromium 启动性能回归：页面初始已有 2,000 个按钮时分帧初始化，不产生 Long Task。"""
+        html = (FIXTURES_DIR / "startup.html").read_text(encoding="utf-8")
+
+        for scenario, expected_count in (("steady", 2000), ("remove-once", 1999)):
+            with self.subTest(scenario=scenario):
+                res = self._run_in_headless_chromium(html.replace("__STARTUP_SCENARIO__", scenario))
+                self.assertEqual(res["buttonCount"], expected_count, res)
+                self.assertTrue(res["allTranslated"], res)
+                self.assertTrue(res["tailTranslated"], res)
+                self.assertTrue(res["reportsLongTasks"], "Chromium did not support Long Task instrumentation")
+                self.assertLess(res["dclBootMs"], 30.0, res)
+                self.assertLess(res["maxRafMs"], 30.0, res)
+                self.assertEqual(res["longTasks"], [], res)
 
 
 if __name__ == "__main__":

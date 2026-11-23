@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script src="__FIXTURE_JS_URL__"></script>
+<script>
+const steps = fixture.steps(fixture.conversation(document.body));
+const settings = fixture.container(document.body, { 'data-testid': 'settings-app-version-card' });
+const prose = fixture.container(document.body, { class: 'prose' });
+const makeStatus = (id) => {
+  const button = fixture.status('Thought for 9s', 'thinking-collapsible-trigger');
+  button.setAttribute('aria-controls', id);
+  return button;
+};
+const owners = ['removed-owner', 'retargeted-owner', 'late-panel-id', 'reparented-panel'].map(id => {
+  const button = makeStatus(id);
+  fixture.mountStatus(steps, button);
+  return button;
+});
+const createPanel = (id, parent = document.body) => {
+  const panel = fixture.container(parent, id ? { id } : {});
+  const content = fixture.container(panel, { 'data-testid': 'settings-app-version-card', title: 'Settings' });
+  content.textContent = 'Settings';
+  return { panel, content };
+};
+const lateId = createPanel('');
+const migration = fixture.status('Worked for 22s');
+const largeWrapper = fixture.container(steps, { 'data-step-rows': '' });
+for (let i = 0; i < 520; i++) fixture.container(largeWrapper);
+fixture.container(largeWrapper, { class: 'relative' }).append(migration);
+
+const detachedGroup = fixture.container(settings);
+for (let i = 0; i < 96; i++) fixture.container(detachedGroup, { title: 'Settings' });
+const detached = detachedGroup.lastElementChild;
+const staysDetached = detached.previousElementSibling;
+const futureProse = fixture.container(settings, { title: 'Settings' });
+futureProse.textContent = 'Settings';
+const futureTextbox = fixture.container(settings, { title: 'Settings' });
+futureTextbox.textContent = 'Settings';
+const migrationText = migration.firstChild;
+const nativeObserver = MutationObserver;
+let migratedTextRecords = 0;
+window.MutationObserver = class extends nativeObserver {
+  constructor(callback) {
+    super((records, observer) => {
+      migratedTextRecords += records.filter(record => record.target === migrationText).length;
+      callback(records, observer);
+    });
+  }
+};
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+const localizedStatus = '思考耗时 9秒';
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+async function until(predicate, maxFrames = 110) {
+  for (let i = 0; i < maxFrames; i++) {
+    if (predicate()) return true;
+    await frame();
+  }
+  return predicate();
+}
+const untouched = ({ content }) => content.textContent === 'Settings' && content.title === 'Settings';
+
+(async () => {
+  try {
+    const ready = await until(() => owners.every(button => button.textContent === localizedStatus) &&
+      detached.title === '设置' && lateId.content.title === '设置' && migration.textContent === '运行耗时 22秒' &&
+      futureProse.textContent === '设置' && futureTextbox.textContent === '设置');
+    if (!ready) throw new Error('Positive slots did not translate before exercising races');
+
+    const removed = createPanel('removed-owner', fixture.container(document.body));
+    owners[0].remove();
+    const retargeted = createPanel('retargeted-owner');
+    owners[1].setAttribute('aria-controls', 'new-target');
+    lateId.panel.id = 'late-panel-id';
+    const reused = createPanel('new-target');
+    reused.panel.remove();
+    owners[1].remove();
+    const replacement = createPanel('new-target');
+    const carrier = fixture.container(document.body);
+    const reparented = createPanel('reparented-panel', carrier);
+    owners[3].remove();
+    const secondHost = fixture.container(document.body);
+    secondHost.append(carrier);
+
+    const lateExpanded = makeStatus('late-expanded');
+    lateExpanded.removeAttribute('aria-expanded');
+    fixture.mountStatus(steps, lateExpanded);
+    const sentinel = fixture.container(settings);
+    sentinel.textContent = 'Settings';
+    if (!await until(() => sentinel.textContent === '设置')) throw new Error('Initial discovery did not settle');
+    lateExpanded.setAttribute('aria-expanded', 'false');
+    const expanded = createPanel('late-expanded');
+
+    const portal = createPanel('cursor-panel');
+    const branch = document.createElement('div');
+    branch.setAttribute('data-step-rows', '');
+    const first = fixture.container(branch);
+    const cut = fixture.container(first);
+    const pendingSibling = fixture.container(branch);
+    for (let i = 0; i < 2400; i++) fixture.container(branch);
+    const last = makeStatus('cursor-panel');
+    fixture.container(branch, { class: 'relative' }).append(last);
+    let didCut = false;
+    fixture.yieldAfterVisiting(cut, () => {
+      first.remove();
+      pendingSibling.remove();
+      didCut = true;
+    });
+    steps.append(branch);
+    futureProse.classList.add('prose');
+    futureTextbox.setAttribute('role', 'textbox');
+
+    prose.append(largeWrapper);
+    for (let i = 0; i < 120; i++) migrationText.data = 'Worked for ' + i + 's';
+
+    // This observer runs after the engine has processed the removal record.
+    const processedRemoval = new Promise(resolve => {
+      const witness = new nativeObserver(() => { witness.disconnect(); resolve(); });
+      witness.observe(settings, { childList: true });
+    });
+    detachedGroup.remove();
+    await processedRemoval;
+    detached.title = '设置';
+    staysDetached.remove();
+    staysDetached.title = '设置';
+    prose.append(detachedGroup);
+
+    const visitedTail = await until(() => last.textContent === localizedStatus &&
+      replacement.content.title === '设置', 130);
+    await frame();
+    await frame();
+    window.__TEST_RESULT__ = {
+      didCut,
+      visitedTail,
+      cursorPortalUntouched: untouched(portal),
+      portalBeforeRemovalUntouched: untouched(removed),
+      portalBeforeRetargetUntouched: untouched(retargeted),
+      movedPortalUntouched: untouched(reparented),
+      latePanelIdRestored: untouched(lateId),
+      lateExpandedProtected: untouched(expanded),
+      recycledIdLocalized: replacement.content.title === '设置' && replacement.content.textContent === '设置',
+      detachedAssignmentPreserved: detached.title === '设置',
+      disconnectedAssignmentPreserved: !staysDetached.isConnected && staysDetached.title === '设置',
+      lateProseRestored: untouched({ content: futureProse }),
+      lateTextboxRestored: untouched({ content: futureTextbox }),
+      migratedTextPreserved: migrationText.data === 'Worked for 119s',
+      migratedTextRecords,
+    };
+    window.__TEST_DONE__ = true;
+  } catch (error) {
+    window.__TEST_ERROR__ = error.stack ?? String(error);
+  }
+})();
+</script>
+</body>
+</html>

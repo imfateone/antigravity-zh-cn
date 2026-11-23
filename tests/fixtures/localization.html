@@ -1,0 +1,609 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<div id="root">
+  <aside data-testid="sidebar-navigation-items">
+    <a href="#" data-testid="new-conversation-button" id="sidebar-action">New Conversation</a>
+    <a href="#" title="Open" id="sidebar-user-title">Open</a>
+    <button type="button" id="sidebar-custom-name">Editing app.py</button>
+  </aside>
+  <div data-testid="pane-titlebar-toolbar">
+    <button data-testid="titlebar-more-actions" id="titlebar-action" title="Open"><span>Open</span></button>
+    <span id="titlebar-user-title" title="Settings">Settings</span>
+  </div>
+  <!-- App Shell: dates and empty state -->
+  <aside data-testid="settings-app-version-card">
+    <nav>
+      <span id="sb-2d" data-screenshot-volatile>2d</span>
+      <span id="sb-5h" data-screenshot-volatile>5h</span>
+      <span id="sb-ago">3d ago</span>
+      <span id="sb-2D">2D</span>
+      <span id="sb-3D">3D</span>
+      <div class="empty-box"><svg id="orig-empty-svg"></svg><span id="sb-empty">No projects found</span></div>
+    </nav>
+  </aside>
+
+  <!-- App Shell: Settings + Prototype keys + Non-destructive text + Forms + Editable -->
+  <div class="settings-modal-container" role="dialog">
+    <h2 id="set-h2">Settings</h2>
+    <p id="set-p">Manage your notification preferences</p>
+    <table id="set-table">
+      <tr><th id="set-th">Action</th><th>Shortcut</th></tr>
+      <tr><td id="set-td-open">Open Settings</td><td id="set-td-2d">2d</td></tr>
+    </table>
+    <div id="diag-see">See our server response: custom trace.</div>
+    <div id="diag-patch">Patch note: No projects found in the log.</div>
+    <div id="diag-req">It requires Node 20 to be installed.</div>
+    <div id="diag-thought">Thought for a while testing</div>
+    <div id="diag-worked">Worked for fun</div>
+    <div id="diag-prefix-trunc">Confirming this undo action will make the following changes: custom trace must stay.</div>
+    <div id="diag-settings-trunc">Manage your notification preferences: custom note must stay.</div>
+    <div id="diag-ellipsis-trunc">Manage your notification preferences only in this workspace…</div>
+    <div id="diag-gemini-long">Gemini 4 Argon is now available in preview with custom quota details.</div>
+    <span id="proto-1">__proto__</span>
+    <span id="proto-2">hasOwnProperty</span>
+    <span id="proto-3">constructor</span>
+    <span id="after-proto">Settings</span>
+
+    <div id="ce-plain" contenteditable="plaintext-only">Open</div>
+    <div class="prose">
+      <div id="ce-prose" contenteditable="true" aria-label="Settings">Open</div>
+      <div id="prose-empty">No projects found</div>
+    </div>
+
+    <div id="gp-concat">
+      <span id="adj-span">Hello</span>
+      <div id="protected-mc" data-message-content>files found</div>
+      <textarea id="draft-ta" placeholder="Search">my draft</textarea>
+    </div>
+
+    <div id="preview-btn" role="button" data-artifact-preview>
+      <table><tr><td id="preview-td">Settings</td></tr></table>
+      <blockquote id="preview-bq">Open</blockquote>
+      <div class="prose"><p id="preview-p">Save</p></div>
+      <span id="preview-span">Review</span>
+    </div>
+
+    <div id="unmarked-preview-btn" role="button" data-artifact-preview>
+      <h1 id="unmarked-preview-h1">Open</h1>
+      <p id="unmarked-preview-p">Settings</p>
+    </div>
+
+    <button id="tip-btn" data-tooltip="Settings" data-title="Custom Keep">Save</button>
+    <span id="iframe-src-span" data-screenshot-volatile>2d</span>
+
+    <form id="test-form">
+      <button id="form-submit-btn" type="submit" name="intent" value="delete">Delete</button>
+      <input id="form-input-submit" type="submit" name="act" value="Save">
+      <select id="form-select" name="mode">
+        <option id="opt-implicit">Open</option>
+        <option id="opt-explicit" value="closed">Close</option>
+      </select>
+      <select id="form-select-nested" name="nested_mode">
+        <option id="opt-nested-implicit"></option>
+      </select>
+    </form>
+  </div>
+
+
+  <!-- Antigravity 2.34 AutoScroll, response, cards and action fieldset paths -->
+  <div data-testid="conversation-view" id="chat-pane-1">
+    <div data-autoscroll-overlay-host><div data-testid="autoscroll-viewport"><div><div id="chat-messages-1">
+      <div data-testid="user-message"><div id="user-msg">Settings</div></div>
+      <div data-quotable-root><div><div><div data-turn-content>
+        <div data-testid="agent-response" data-quotable="true" id="turn-1">
+          <div data-step-list id="fixture-steps">
+            <div class="relative"><div class="flex min-w-0 items-center">
+              <button data-testid="worked-for-collapsible" aria-expanded="false" id="btn-worked">Worked for 22s</button>
+            </div></div>
+            <div class="relative"><button data-testid="thinking-collapsible-trigger" id="btn-thought" aria-controls="thought-portal-1" aria-expanded="false">Thought for 1m 5s ></button></div>
+            <div class="relative"><button data-testid="thinking-collapsible-trigger" aria-expanded="false" id="btn-thought-late">Thought for 8s</button></div>
+            <div class="relative"><button data-testid="tool-group-collapsible" aria-expanded="false" id="btn-explored"><span>Explored 2 files</span><svg></svg></button></div>
+            <div class="relative"><button data-testid="tool-group-collapsible" aria-expanded="false" id="btn-editing">Editing foo$&amp;bar.py +3 -1</button></div>
+            <div class="relative"><button data-testid="worked-for-collapsible" aria-expanded="false" id="fault-bad-btn">Worked for 11s</button></div>
+            <div class="relative"><button data-testid="worked-for-collapsible" aria-expanded="false" id="fault-good-btn">Worked for 12s</button></div>
+        <div id="bare-reply">
+          <div id="bare-settings">Settings</div>
+          <span id="bare-2m">2m</span>
+          <span id="bare-false">false</span>
+          <span id="bare-justnow">Just now</span>
+          <span id="bare-3dago">3d ago</span>
+          <span id="bare-working">Working...</span>
+          <div id="bare-review">Review</div>
+          <div id="bare-empty">No projects found</div>
+          <div id="bare-summary-prose">2 files changed +99 -23 ></div>
+          <span id="bare-direct-host">Settings</span>
+          <p><button id="prose-p-btn" aria-label="Settings">Review</button></p>
+          <header><div id="prose-hdr-settings">Settings</div><button id="prose-hdr-review">Review</button></header>
+          <div role="dialog" id="prose-fake-dialog">
+            <div id="prose-dlg-settings">Settings</div>
+            <div id="prose-dlg-review">Review</div>
+            <div id="prose-dlg-trunc">Confirming this undo action will make the following changes: custom trace must stay.</div>
+          </div>
+          <div id="prose-fake-fb">
+            <button id="prose-fake-fb-btn" aria-label="Good response">Good response</button>
+            <span id="prose-fake-fb-ts">2m</span>
+          </div>
+          <div id="prose-fake-sum">
+            <span id="prose-fake-sum-lbl">2 files changed</span>
+            <button id="prose-fake-sum-btn">Review</button>
+          </div>
+          <div id="bare-role-btn-preview" role="button"><div><span id="bare-role-btn-review">Review</span></div></div>
+        </div>
+          </div>
+          <div data-testid="turn-cards-container">
+            <div data-testid="changed-files-card"><div data-testid="changed-files-card-header">
+              <div><span id="sum-single">2 files changed +99 -23 ></span></div>
+              <button data-testid="changed-files-card-review" id="sum-review-1">Review</button>
+            </div></div>
+            <div data-testid="changed-files-card"><div data-testid="changed-files-card-header">
+              <div><span id="sum-split-lbl">2 files changed</span><div><span id="sum-split-add">+99</span><span id="sum-split-del">-23</span></div></div>
+              <button data-testid="changed-files-card-review" id="sum-review-2">Review</button>
+            </div></div>
+          </div>
+          <div data-testid="inline-permission-slot"><div data-testid="inline-permission-card" data-permission-surface="chat">
+            <div><div><div><span class="text-compact font-semibold" id="dlg-title">Allow write access to this path?</span></div></div></div>
+            <code id="dlg-code">/tmp/Settings</code>
+            <div data-diagnostic id="dlg-diag">See our server response: custom trace.</div>
+            <button data-testid="inline-permission-allow" id="dlg-allow">Yes, allow this time</button>
+          </div></div>
+        </div>
+        <fieldset><div><div data-testid="cascade-system-message-toolbar"><div>
+          <div>
+            <button class="agy-button-icon" id="fb-copy" aria-label="Copy" data-tooltip-id="copy-tip"><svg></svg></button>
+            <button class="agy-button-icon" id="fb-good" aria-label="Good response" data-tooltip-id="good-tip"><svg></svg></button>
+            <button class="agy-button-icon" id="fb-bad" aria-label="Bad response" data-tooltip-id="bad-tip"><svg></svg></button>
+            <span data-agy-turn-host="1" id="agy-turn-pill">用量 1.9M tok</span>
+          </div>
+          <span id="turn-ts" data-screenshot-volatile data-tooltip-id="age-tip">Just now</span>
+        </div></div></div></fieldset>
+      </div></div></div></div>
+    </div></div></div></div>
+    <div data-testid="agent-input-box">
+      <div class="surface-composer" id="comp-main">
+        <textarea id="comp-ta" placeholder="Search">draft</textarea>
+        <div><div contenteditable="true" data-lexical-editor id="comp-lexical">Settings</div>
+          <p class="pointer-events-none select-none text-ellipsis" id="comp-overlay">Ask anything, @ to mention</p>
+        </div>
+        <div class="agy-composer-footer" data-agent-composer-root><button id="comp-send">Send</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty Chat Pane containing an internal <nav> (Round-2 P0 repro!) -->
+  <div class="chat-pane" id="empty-chat-pane">
+    <div class="chat-messages" id="empty-chat-msgs"><nav><span>Empty guide</span></nav></div>
+    <div class="surface-composer" id="comp-relocate"><textarea placeholder="Search"></textarea></div>
+  </div>
+
+  <!-- Read-only / Virtualized Chat Thread (NO composer, >12 nesting levels, user bubble will unmount) -->
+  <div class="chat-scroll-pane" id="virt-chat">
+    <div class="group/user-input-step" id="virt-user"><span>Prompt</span></div>
+    <div id="deep-mount"></div>
+  </div>
+
+  <!-- Read-only History List with user step and <aside> in sibling branches (Round-2 P0 repro!) -->
+  <div role="log" id="hist-list">
+    <div class="user-branch"><div class="group/user-input-step"><span>History Prompt</span></div></div>
+    <aside class="inline-aside"><span>Callout</span></aside>
+    <div class="ai-branch"><div id="hist-ai-settings">Settings</div></div>
+  </div>
+
+  <!-- Artifact Sidebar (with [data-artifact-content] button test!) + Dynamic Artifact aside -->
+  <aside class="artifact-sidebar" id="art-side">
+    <div data-testid="artifact-view"><h1 id="art-h1">Settings</h1>
+    <div id="art-body">Open</div></div>
+    <div data-artifact-content><button id="art-content-btn">Review</button></div>
+    <div role="button"><div><span id="art-unmarked-preview">Review</span></div></div>
+    <div data-testid="artifact-editor-header"><button id="art-close">Close</button></div>
+  </aside>
+  <aside id="dyn-aside"></aside>
+  <div role="dialog" class="agy-dialog">
+    <div><h2 class="text-lg font-medium" id="confirm-title">Confirm Undo</h2></div>
+    <div><div>
+      <p id="confirm-info">Confirming this undo action will make the following changes:</p>
+      <div id="confirm-path">Review</div>
+      <div class="items-center justify-end pt-3"><div><button id="confirm-button"><span>Confirm</span></button></div></div>
+    </div></div>
+  </div>
+  <iframe id="same-origin-frame" srcdoc="<!doctype html><html><body></body></html>"></iframe>
+</div>
+
+<script src="__FIXTURE_JS_URL__"></script>
+<script>
+  // Build 18 nested wrappers inside #virt-chat to test depth > 12
+  (function() {
+    let cur = document.getElementById('deep-mount');
+    for (let i = 0; i < 18; i++) {
+      const d = document.createElement('div');
+      cur.appendChild(d);
+      cur = d;
+    }
+    const p = document.createElement('p');
+    p.id = 'virt-deep-p';
+    p.textContent = 'Settings';
+    const bare = document.createElement('div');
+    bare.id = 'virt-deep-bare';
+    bare.textContent = 'Open';
+    cur.appendChild(p);
+    cur.appendChild(bare);
+  })();
+  // Build <option><span>Open</span></option> via DOM (HTML parser strips tags inside <option>)
+  (function() {
+    const opt = document.getElementById('opt-nested-implicit');
+    const sp = document.createElement('span');
+    sp.id = 'opt-nested-span';
+    sp.textContent = 'Open';
+    opt.appendChild(sp);
+  })();
+  document.getElementById('draft-ta').value = 'my draft';
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+const waitFrames = (n = 2) => new Promise((resolve) => {
+  let left = n;
+  const step = () => { if (--left <= 0) resolve(); else requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+});
+
+(async () => {
+  try {
+    // Wait for budgeted startup slices to finish initial scan before starting dynamic mutations
+    for (let f = 0; f < 40; f++) {
+      await waitFrames(1);
+      if (document.getElementById('btn-worked').textContent === '运行耗时 22秒' &&
+          document.getElementById('turn-ts').textContent === '刚刚' &&
+          document.getElementById('comp-send').textContent === '发送') {
+        break;
+      }
+    }
+    await waitFrames(2);
+
+    // 1. Dynamic mutation: virtual list unmounts user bubble, then AI streams into deep turn
+    const origSvgRef = document.getElementById('orig-empty-svg');
+    const mcRef = document.getElementById('protected-mc');
+    const draftRef = document.getElementById('draft-ta');
+    document.getElementById('virt-user').remove();
+    const deepP = document.getElementById('virt-deep-p');
+    deepP.firstChild.data = 'Review';
+    const virtNewDiv = document.createElement('div');
+    virtNewDiv.id = 'virt-new-div';
+    virtNewDiv.textContent = 'Settings';
+    const virtNewSpan = document.createElement('span');
+    virtNewSpan.id = 'virt-new-span';
+    virtNewSpan.textContent = '2m';
+    deepP.parentElement.appendChild(virtNewDiv);
+    deepP.parentElement.appendChild(virtNewSpan);
+
+    // 2. Dynamic bare reply inside empty chat pane (no .group/user-input-step ever existed)
+    const emptyReply = document.createElement('div');
+    emptyReply.innerHTML = '<div id="empty-chat-settings">Settings</div><span id="empty-chat-2m">2m</span>';
+    document.getElementById('empty-chat-msgs').appendChild(emptyReply);
+
+    // 3. Dynamically mount aria-controls expanded thinking panel as Portal directly under body
+    const thoughtPortal = document.createElement('div');
+    thoughtPortal.id = 'thought-portal-1';
+    thoughtPortal.innerHTML = '<div id="tp-settings">Settings</div><span id="tp-2m">2m</span>';
+    document.body.appendChild(thoughtPortal);
+
+    // 4. Dynamic adjacent concat attempting to trigger old checkEmptyContainer
+    document.getElementById('adj-span').firstChild.data = 'No ';
+
+    // 5. Dynamic contenteditable plaintext-only and .prose editable aria-label mutation
+    document.getElementById('ce-plain').firstChild.data = 'Settings';
+    document.getElementById('ce-prose').setAttribute('aria-label', 'Search');
+
+    // 6. Independent data-title mutation on #tip-btn
+    const tipBtn = document.getElementById('tip-btn');
+    const tipInitialDataTitle = tipBtn.getAttribute('data-title');
+    tipBtn.setAttribute('data-title', 'Open');
+
+    // 7. Dynamic timestamp progression on verified turn footer (Just now -> 2m)
+    const tsEl = document.getElementById('turn-ts');
+    const tsInitial = tsEl.textContent;
+    tsEl.firstChild.data = '2m';
+
+    // 8. Append and synchronously detach in the same task (MUST NOT translate detached node)
+    const detachedSpan = document.createElement('span');
+    const detachedText = document.createTextNode('Settings');
+    detachedSpan.appendChild(detachedText);
+    document.body.appendChild(detachedSpan);
+    detachedSpan.remove();
+
+    // 9. Virtual recycle / node migration:
+    //    (a) move an already-observed UI Text node into .prose AND mutate it -> keeps new text
+    //    (b) move an already-translated UI Text node into .prose WITHOUT resetting .data -> restores original English!
+    const btnWorkedInitial = document.getElementById('btn-worked').textContent;
+    const migratedText = document.getElementById('btn-worked').firstChild;
+    document.querySelector('.prose').appendChild(migratedText);
+    migratedText.data = 'Worked for 99s';
+
+    const btnThoughtUnreset = fixture.status('Worked for 7s');
+    fixture.mountStatus(document.getElementById('fixture-steps'), btnThoughtUnreset);
+    await waitFrames();
+    const unresetInitial = btnThoughtUnreset.textContent;
+    const unresetText = btnThoughtUnreset.firstChild;
+    document.querySelector('.prose').appendChild(unresetText);
+
+    // 10. Round-2/3: Dynamic aria-controls set AFTER button mount, THEN Portal mounted; then unmount button ONLY!
+    const lateThoughtBtn = document.getElementById('btn-thought-late');
+    const lateThoughtBtnInitial = lateThoughtBtn.textContent;
+    lateThoughtBtn.setAttribute('aria-controls', 'thought-portal-late');
+    const latePortal = document.createElement('div');
+    latePortal.id = 'thought-portal-late';
+    latePortal.innerHTML = '<div id="late-tp-settings">Settings</div><span id="late-tp-2m">2m</span>';
+    document.body.appendChild(latePortal);
+    await waitFrames();
+    // Unmount ONLY the trigger button while keeping expanded Portal mounted -> Portal MUST stay protected!
+    lateThoughtBtn.remove();
+    const lateAfterUnmountDiv = document.createElement('div');
+    lateAfterUnmountDiv.id = 'late-tp-after-unmount';
+    lateAfterUnmountDiv.textContent = 'Settings';
+    latePortal.appendChild(lateAfterUnmountDiv);
+
+    // 11. Round-2/3: Same batch - Portal mounted FIRST + inner title="Settings" updated, THEN wrapper div>button[aria-controls] mounted
+    const racePortal = document.createElement('div');
+    racePortal.id = 'thought-portal-race';
+    racePortal.innerHTML = '<div id="race-tp-settings">Settings</div><span id="race-tp-2m">2m</span>';
+    document.body.appendChild(racePortal);
+    document.getElementById('race-tp-settings').setAttribute('title', 'Settings');
+    const raceWrap = document.createElement('div');
+    raceWrap.setAttribute('data-step-rows', '');
+    const raceBtn = document.createElement('button');
+    raceBtn.id = 'race-trigger-btn';
+    raceBtn.setAttribute('data-testid', 'thinking-collapsible-trigger');
+    raceBtn.setAttribute('aria-expanded', 'false');
+    raceBtn.setAttribute('aria-controls', 'thought-portal-race');
+    const raceSpan = document.createElement('span');
+    raceSpan.textContent = 'Thought for 9s';
+    raceBtn.appendChild(raceSpan);
+    const raceHeader = document.createElement('div');
+    raceHeader.className = 'relative';
+    raceHeader.append(raceBtn);
+    raceWrap.append(raceHeader);
+    document.getElementById('fixture-steps').append(raceWrap);
+
+    // 11b. Round-3: History list WITHOUT Composer - remove user step, then append NEW turn <div>Settings</div>
+    document.querySelector('#hist-list .user-branch').remove();
+    const histNewTurn = document.createElement('div');
+    histNewTurn.id = 'hist-new-turn';
+    histNewTurn.textContent = 'Settings';
+    document.getElementById('hist-list').appendChild(histNewTurn);
+
+    // 11c. Round-3: <option value="closed">Close</option> then remove value attribute -> FormData MUST stay "Close"!
+    const optExp = document.getElementById('opt-explicit');
+    optExp.removeAttribute('value');
+    optExp.selected = true;
+
+    // 12. Round-2: Dynamically add artifact-sidebar class to mounted empty <aside>, then insert <h1>Settings</h1>
+    const dynAside = document.getElementById('dyn-aside');
+    dynAside.classList.add('artifact-sidebar');
+    const dynArtH1 = document.createElement('h1');
+    dynArtH1.id = 'dyn-art-h1';
+    dynArtH1.textContent = 'Settings';
+    dynAside.appendChild(dynArtH1);
+
+    // 13. Round-2: Migrate observed Text node into same-origin iframe, then mutate to 'Settings'
+    const iframe = document.getElementById('same-origin-frame');
+    const iframeDoc = iframe.contentDocument;
+    const iframeText = document.getElementById('iframe-src-span').firstChild;
+    const iframeDiv = iframeDoc.createElement('div');
+    iframeDiv.appendChild(iframeText);
+    iframeDoc.body.appendChild(iframeDiv);
+    iframeText.data = 'Settings';
+
+    // 14. Round-2: Strip .surface-composer class and relocate element into .chat-messages, then append prose
+    const relocComp = document.getElementById('comp-relocate');
+    relocComp.classList.remove('surface-composer');
+    document.getElementById('chat-messages-1').appendChild(relocComp);
+    const relocProse = document.createElement('div');
+    relocProse.id = 'reloc-comp-prose';
+    relocProse.textContent = 'Settings';
+    relocComp.appendChild(relocProse);
+
+    // 15. Round-2: Composer dynamic button text Send -> Stop in-place mutation
+    const compSendBtn = document.getElementById('comp-send');
+    const compSendInitial = compSendBtn.textContent;
+    compSendBtn.firstChild.data = 'Stop';
+
+    // 16. Round-2: Fault isolation in slotTextObserver (throwing data getter MUST NOT break next valid button)
+    const badText = document.getElementById('fault-bad-btn').firstChild;
+    const goodText = document.getElementById('fault-good-btn').firstChild;
+    const origDataDesc = Object.getOwnPropertyDescriptor(CharacterData.prototype, 'data');
+    badText.data = 'Worked for 31s';
+    Object.defineProperty(badText, 'data', {
+      configurable: true,
+      get() { throw new Error('injected getter failure'); },
+      set(v) { origDataDesc.set.call(this, v); }
+    });
+    goodText.data = 'Worked for 42s';
+
+    await waitFrames();
+
+    // Verify removeChild works on protected node without NotFoundError
+    let removeChildOk = false;
+    try {
+      const gp = document.getElementById('gp-concat');
+      gp.removeChild(mcRef);
+      removeChildOk = true;
+    } catch (e) {
+      removeChildOk = false;
+    }
+
+    // Check real FormData submission values
+    const form = document.getElementById('test-form');
+    const submitBtn = document.getElementById('form-submit-btn');
+    const fd = new FormData(form, submitBtn);
+
+    window.__TEST_RESULT__ = {
+      // Sidebar & app-shell
+      sb2d: document.getElementById('sb-2d').textContent,
+      sb5h: document.getElementById('sb-5h').textContent,
+      sbAgo: document.getElementById('sb-ago').textContent,
+      sb2D: document.getElementById('sb-2D').textContent,
+      sb3D: document.getElementById('sb-3D').textContent,
+      sbEmpty: document.getElementById('sb-empty').textContent,
+      sidebarAction: document.getElementById('sidebar-action').textContent,
+      sidebarUserTitle: document.getElementById('sidebar-user-title').textContent,
+      sidebarUserTooltip: document.getElementById('sidebar-user-title').title,
+      sidebarCustomName: document.getElementById('sidebar-custom-name').textContent,
+      titlebarAction: document.getElementById('titlebar-action').title,
+      titlebarUserTitle: document.getElementById('titlebar-user-title').textContent,
+      titlebarUserTooltip: document.getElementById('titlebar-user-title').title,
+      origEmptySvgConnected: origSvgRef.isConnected,
+      setH2: document.getElementById('set-h2').textContent,
+      setP: document.getElementById('set-p').textContent,
+      setTh: document.getElementById('set-th').textContent,
+      setTdOpen: document.getElementById('set-td-open').textContent,
+      setTd2d: document.getElementById('set-td-2d').textContent,
+
+      // Non-destructive diagnostics & prototype safety
+      diagSee: document.getElementById('diag-see').textContent,
+      diagPatch: document.getElementById('diag-patch').textContent,
+      diagReq: document.getElementById('diag-req').textContent,
+      diagThought: document.getElementById('diag-thought').textContent,
+      diagWorked: document.getElementById('diag-worked').textContent,
+      diagPrefixTrunc: document.getElementById('diag-prefix-trunc').textContent,
+      diagSettingsTrunc: document.getElementById('diag-settings-trunc').textContent,
+      diagEllipsisTrunc: document.getElementById('diag-ellipsis-trunc').textContent,
+      diagGeminiLong: document.getElementById('diag-gemini-long').textContent,
+      proto1: document.getElementById('proto-1').textContent,
+      proto2: document.getElementById('proto-2').textContent,
+      proto3: document.getElementById('proto-3').textContent,
+      afterProto: document.getElementById('after-proto').textContent,
+
+      // Editable & protected boundaries
+      cePlain: document.getElementById('ce-plain').textContent,
+      ceProseText: document.getElementById('ce-prose').textContent,
+      ceProseAria: document.getElementById('ce-prose').getAttribute('aria-label'),
+      proseEmpty: document.getElementById('prose-empty').textContent,
+      draftConnected: draftRef.isConnected,
+      draftVal: draftRef.value,
+      draftPh: draftRef.placeholder,
+      removeChildOk,
+
+      // role="button" preview protection (marked + unmarked)
+      previewTd: document.getElementById('preview-td').textContent,
+      previewBq: document.getElementById('preview-bq').textContent,
+      previewP: document.getElementById('preview-p').textContent,
+      previewSpan: document.getElementById('preview-span').textContent,
+      unmarkedPreviewH1: document.getElementById('unmarked-preview-h1').textContent,
+      unmarkedPreviewP: document.getElementById('unmarked-preview-p').textContent,
+
+      // Independent attributes & fault isolation
+      tipTooltip: tipBtn.getAttribute('data-tooltip'),
+      tipInitialDataTitle,
+      tipUpdatedDataTitle: tipBtn.getAttribute('data-title'),
+      tipText: tipBtn.textContent,
+      faultGoodBtn: document.getElementById('fault-good-btn').textContent,
+
+      // Form values (including nested <span> inside implicit <option>)
+      formIntent: fd.get('intent'),
+      formBtnText: submitBtn.textContent,
+      formInputVal: document.getElementById('form-input-submit').value,
+      optImplicitText: document.getElementById('opt-implicit').textContent,
+      formSelectMode: fd.get('mode'),
+      optNestedMode: fd.get('nested_mode'),
+      optNestedSpanText: document.getElementById('opt-nested-span').textContent,
+      optExplicitText: document.getElementById('opt-explicit').textContent,
+      optExplicitVal: document.getElementById('opt-explicit').value,
+
+      // Chat zone: positive UI slots
+      btnWorked: btnWorkedInitial,
+      migratedText: migratedText.data,
+      unresetInitial,
+      unresetProseText: unresetText.data,
+      btnThought: document.getElementById('btn-thought').textContent,
+      btnThoughtLate: lateThoughtBtnInitial,
+      btnExplored: document.getElementById('btn-explored').textContent,
+      btnEditing: document.getElementById('btn-editing').textContent,
+      sumSingle: document.getElementById('sum-single').textContent,
+      sumReview1: document.getElementById('sum-review-1').textContent,
+      sumSplitLbl: document.getElementById('sum-split-lbl').textContent,
+      sumSplitAdd: document.getElementById('sum-split-add').textContent,
+      sumSplitDel: document.getElementById('sum-split-del').textContent,
+      sumReview2: document.getElementById('sum-review-2').textContent,
+      dlgTitle: document.getElementById('dlg-title').textContent,
+      dlgCode: document.getElementById('dlg-code').textContent,
+      dlgDiag: document.getElementById('dlg-diag').textContent,
+      dlgAllow: document.getElementById('dlg-allow').textContent,
+      confirmTitle: document.getElementById('confirm-title').textContent,
+      confirmInfo: document.getElementById('confirm-info').textContent,
+      confirmPath: document.getElementById('confirm-path').textContent,
+      confirmButton: document.getElementById('confirm-button').textContent,
+      fbCopy: document.getElementById('fb-copy').getAttribute('aria-label'),
+      fbGood: document.getElementById('fb-good').getAttribute('aria-label'),
+      fbBad: document.getElementById('fb-bad').getAttribute('aria-label'),
+      agyTurnPill: document.getElementById('agy-turn-pill').textContent,
+      tsInitial,
+      tsUpdated: tsEl.textContent,
+      compPh: document.getElementById('comp-ta').placeholder,
+      compOverlay: document.getElementById('comp-overlay').textContent,
+      compLexical: document.getElementById('comp-lexical').textContent,
+      compVal: document.getElementById('comp-ta').value,
+      compSend: compSendInitial,
+      compSendUpdated: compSendBtn.textContent,
+
+      // Chat zone: bare unclassed reply & Round-2 prose bypass guards
+      userMsg: document.getElementById('user-msg').textContent,
+      bareSettings: document.getElementById('bare-settings').textContent,
+      bare2m: document.getElementById('bare-2m').textContent,
+      bareFalse: document.getElementById('bare-false').textContent,
+      bareJustNow: document.getElementById('bare-justnow').textContent,
+      bare3dAgo: document.getElementById('bare-3dago').textContent,
+      bareWorking: document.getElementById('bare-working').textContent,
+      bareReview: document.getElementById('bare-review').textContent,
+      bareEmpty: document.getElementById('bare-empty').textContent,
+      bareSummaryProse: document.getElementById('bare-summary-prose').textContent,
+      bareDirectHost: document.getElementById('bare-direct-host').textContent,
+      prosePBtnText: document.getElementById('prose-p-btn').textContent,
+      prosePBtnAria: document.getElementById('prose-p-btn').getAttribute('aria-label'),
+      proseHdrSettings: document.getElementById('prose-hdr-settings').textContent,
+      proseHdrReview: document.getElementById('prose-hdr-review').textContent,
+      proseDlgSettings: document.getElementById('prose-dlg-settings').textContent,
+      proseDlgReview: document.getElementById('prose-dlg-review').textContent,
+      proseDlgTrunc: document.getElementById('prose-dlg-trunc').textContent,
+      proseFakeFbBtnText: document.getElementById('prose-fake-fb-btn').textContent,
+      proseFakeFbBtnAria: document.getElementById('prose-fake-fb-btn').getAttribute('aria-label'),
+      proseFakeFbTs: document.getElementById('prose-fake-fb-ts').textContent,
+      proseFakeSumLbl: document.getElementById('prose-fake-sum-lbl').textContent,
+      proseFakeSumBtn: document.getElementById('prose-fake-sum-btn').textContent,
+      bareRoleBtnReview: document.getElementById('bare-role-btn-review').textContent,
+
+      // Virtual unmount + deep nesting + empty chat w/ nav + history w/ aside + portals + artifact + migration
+      virtDeepP: deepP.textContent,
+      virtDeepBare: document.getElementById('virt-deep-bare').textContent,
+      virtNewDiv: virtNewDiv.textContent,
+      virtNewSpan: virtNewSpan.textContent,
+      emptyChatSettings: document.getElementById('empty-chat-settings').textContent,
+      emptyChat2m: document.getElementById('empty-chat-2m').textContent,
+      histAiSettings: document.getElementById('hist-ai-settings').textContent,
+      histNewTurn: histNewTurn.textContent,
+      tpSettings: document.getElementById('tp-settings').textContent,
+      tp2m: document.getElementById('tp-2m').textContent,
+      lateTpSettings: document.getElementById('late-tp-settings').textContent,
+      lateTp2m: document.getElementById('late-tp-2m').textContent,
+      lateTpAfterUnmount: lateAfterUnmountDiv.textContent,
+      raceTpSettings: document.getElementById('race-tp-settings').textContent,
+      raceTpTitle: document.getElementById('race-tp-settings').getAttribute('title'),
+      raceTp2m: document.getElementById('race-tp-2m').textContent,
+      raceBtnText: raceBtn.textContent,
+      artH1: document.getElementById('art-h1').textContent,
+      artBody: document.getElementById('art-body').textContent,
+      artContentBtn: document.getElementById('art-content-btn').textContent,
+      artUnmarkedPreview: document.getElementById('art-unmarked-preview').textContent,
+      artClose: document.getElementById('art-close').textContent,
+      dynArtH1: dynArtH1.textContent,
+      iframeText: iframeText.data,
+      relocCompProse: relocProse.textContent,
+      detachedText: detachedText.data,
+    };
+    window.__TEST_DONE__ = true;
+  } catch (err) {
+    window.__TEST_ERROR__ = err && err.stack ? err.stack : String(err);
+  }
+})();
+</script>
+</body>
+</html>

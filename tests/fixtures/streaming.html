@@ -1,0 +1,285 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<div class="prose" id="perf-prose-dest"></div>
+<script src="__FIXTURE_JS_URL__"></script>
+<script>
+  // Instrument MutationObserver, querySelector & rAF frame duration BEFORE loading localization script
+  const stats = {
+    active: false, cbCalls: 0, records: 0, charDataRecords: 0, cbMs: 0, qsCalls: 0,
+    disconnectCalls: 0, textObserveCalls: 0, maxRafMs: 0
+  };
+  const OrigMO = window.MutationObserver;
+  window.MutationObserver = class extends OrigMO {
+    constructor(cb) {
+      super((mutations, obs) => {
+        if (!stats.active) return cb(mutations, obs);
+        stats.cbCalls++;
+        stats.records += mutations.length;
+        for (const m of mutations) if (m.type === 'characterData') stats.charDataRecords++;
+        const t0 = performance.now();
+        try { return cb(mutations, obs); } finally { stats.cbMs += (performance.now() - t0); }
+      });
+    }
+    observe(target, opts) {
+      if (stats.active && target && target.nodeType === 3) stats.textObserveCalls++;
+      return super.observe(target, opts);
+    }
+    disconnect() {
+      if (stats.active) stats.disconnectCalls++;
+      return super.disconnect();
+    }
+  };
+  const origRAF = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = (fn) => origRAF((ts) => {
+    if (!stats.active) return fn(ts);
+    const t0 = performance.now();
+    try { return fn(ts); } finally {
+      const dt = performance.now() - t0;
+      if (dt > stats.maxRafMs) stats.maxRafMs = dt;
+    }
+  });
+  const origQS = Element.prototype.querySelector;
+  const origQSA = Element.prototype.querySelectorAll;
+  const docQS = Document.prototype.querySelector;
+  const docQSA = Document.prototype.querySelectorAll;
+  Element.prototype.querySelector = function(...a) { if (stats.active) stats.qsCalls++; return origQS.apply(this, a); };
+  Element.prototype.querySelectorAll = function(...a) { if (stats.active) stats.qsCalls++; return origQSA.apply(this, a); };
+  Document.prototype.querySelector = function(...a) { if (stats.active) stats.qsCalls++; return docQS.apply(this, a); };
+  Document.prototype.querySelectorAll = function(...a) { if (stats.active) stats.qsCalls++; return docQSA.apply(this, a); };
+
+  // Fixture A: 2,000 turns
+  const turnsHost = fixture.conversation(document.body);
+  const dialog = fixture.container(turnsHost, { role: 'dialog' });
+  const menu = fixture.container(turnsHost, { role: 'menu' });
+  const fA = document.createDocumentFragment();
+  for (let i = 0; i < 2000; i++) {
+    const t = document.createElement('div');
+    t.className = 'turn';
+    if (i === 0) {
+      const u = document.createElement('div');
+      u.className = 'group/user-input-step';
+      u.textContent = 'prompt';
+      t.appendChild(u);
+    }
+    const p = document.createElement('p');
+    p.textContent = 'turn ' + i;
+    t.appendChild(p);
+    fA.appendChild(t);
+  }
+  turnsHost.appendChild(fA);
+  const lastTurnText = turnsHost.lastElementChild.querySelector('p').firstChild;
+
+  // Fixture B: single turn with 2,000 bare spans
+  const spansHost = fixture.conversation(document.body);
+  const turnB = document.createElement('div');
+  const fB = document.createDocumentFragment();
+  for (let i = 0; i < 2000; i++) {
+    const s = document.createElement('span');
+    s.textContent = 'token_' + i + ' ';
+    fB.appendChild(s);
+  }
+  turnB.appendChild(fB);
+  spansHost.appendChild(turnB);
+  const lastSpanText = turnB.lastElementChild.firstChild;
+
+  const stepList = fixture.steps(fixture.conversation(document.body));
+  const detachBtn = fixture.status('Worked for 15s');
+  const migrateBtn = fixture.status('Worked for 16s');
+  fixture.mountStatus(stepList, detachBtn);
+  fixture.mountStatus(stepList, migrateBtn);
+
+  // Fixture C: 520 empty siblings before an observed button.
+  const bigMigWrap = fixture.container(stepList, { 'data-step-rows': '' });
+  const fC = document.createDocumentFragment();
+  for (let i = 0; i < 520; i++) fC.appendChild(document.createElement('div'));
+  const bigMigBtn = fixture.status('Worked for 17s');
+  fixture.container(fC, { class: 'relative' }).append(bigMigBtn);
+  bigMigWrap.appendChild(fC);
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+const waitFrames = (n = 2) => new Promise((resolve) => {
+  let left = n;
+  const step = () => { if (--left <= 0) resolve(); else requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+});
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+async function benchInPlace(textNode) {
+  const runs = [];
+  for (let r = 0; r < 3; r++) {
+    stats.cbCalls = 0; stats.records = 0; stats.charDataRecords = 0; stats.cbMs = 0; stats.qsCalls = 0;
+    stats.active = true;
+    const tokens = ['Settings', '2m', 'No projects found'];
+    for (let i = 1; i <= 2000; i++) {
+      textNode.data = tokens[i % tokens.length];
+    }
+    await waitFrames(2);
+    stats.active = false;
+    runs.push({ cbCalls: stats.cbCalls, records: stats.records, cbMs: stats.cbMs, qsCalls: stats.qsCalls });
+  }
+  return {
+    finalText: textNode.data,
+    medianCbMs: +median(runs.map(x => x.cbMs)).toFixed(3),
+    totalRecords: runs.reduce((a, x) => a + x.records, 0),
+    totalCbCalls: runs.reduce((a, x) => a + x.cbCalls, 0),
+    totalQsCalls: runs.reduce((a, x) => a + x.qsCalls, 0),
+  };
+}
+async function benchStructured(container) {
+  stats.cbCalls = 0; stats.records = 0; stats.cbMs = 0; stats.qsCalls = 0;
+  stats.active = true;
+  const inserted = [];
+  for (let i = 0; i < 120; i++) {
+    const chunk = document.createElement('div');
+    const sp = document.createElement('span');
+    sp.textContent = (i % 2 === 0) ? 'Settings' : '2m';
+    chunk.appendChild(sp);
+    container.appendChild(chunk);
+    inserted.push(sp);
+  }
+  await waitFrames(4);
+  stats.active = false;
+  const untouched = inserted.every((sp, i) => sp.textContent === ((i % 2 === 0) ? 'Settings' : '2m'));
+  return { qsCalls: stats.qsCalls, untouched };
+}
+async function waitForBulkLabel(group, label) {
+  const rows = Array.from(group.children);
+  for (let f = 0; f < 200; f++) {
+    await waitFrames(1);
+    if (rows.every(row => row.textContent === label)) return;
+  }
+  throw new Error('Bulk buttons did not reach ' + label);
+}
+(async () => {
+  try {
+    // Wait for budgeted startup scan to finish completely BEFORE measuring streaming benchmarks
+    for (let f = 0; f < 150; f++) {
+      await waitFrames(1);
+      if (bigMigBtn.textContent === '运行耗时 17秒' &&
+          migrateBtn.textContent === '运行耗时 16秒' &&
+          detachBtn.textContent === '运行耗时 15秒') {
+        break;
+      }
+    }
+    await waitFrames(4);
+    const resTurns = await benchInPlace(lastTurnText);
+    const resSpans = await benchInPlace(lastSpanText);
+    const structTurns = await benchStructured(turnsHost);
+    const structSpans = await benchStructured(turnB);
+    const structChatDialog = await benchStructured(dialog);
+    const structChatMenu = await benchStructured(menu);
+
+    // Migrated UI Text into .prose -> MUST disconnect observer eagerly (0 characterData records on 120 updates!)
+    const migText = migrateBtn.firstChild;
+    document.getElementById('perf-prose-dest').appendChild(migText);
+    await waitFrames(2);
+    stats.charDataRecords = 0; stats.records = 0; stats.qsCalls = 0;
+    stats.active = true;
+    for (let i = 0; i < 120; i++) migText.data = 'Worked for ' + i + 's';
+    await waitFrames(2);
+    stats.active = false;
+    const migratedBench = {
+      charDataRecords: stats.charDataRecords,
+      finalText: migText.data,
+    };
+
+    // Large subtree (>520 empty siblings + observed button) moved into .prose -> restores original & 0 charData records!
+    const bigMigText = bigMigBtn.firstChild;
+    document.getElementById('perf-prose-dest').appendChild(bigMigWrap);
+    await waitFrames(2);
+    const bigMigRestored = bigMigText.data;
+    stats.charDataRecords = 0;
+    stats.active = true;
+    for (let i = 0; i < 120; i++) bigMigText.data = 'Worked for ' + i + 's';
+    await waitFrames(2);
+    stats.active = false;
+    const bigMigratedBench = {
+      restored: bigMigRestored,
+      charDataRecords: stats.charDataRecords,
+      finalText: bigMigText.data,
+    };
+
+    // Batch-mount 2,000 buttons and check detached controls can rebind.
+    detachBtn.remove();
+    await waitFrames(2);
+    const bulkWrap = document.createElement('div');
+    bulkWrap.setAttribute('data-step-rows', '');
+    for (let i = 0; i < 2000; i++) {
+      fixture.container(bulkWrap, { class: 'relative' }).append(fixture.status('Worked for 22s'));
+    }
+    stats.disconnectCalls = 0; stats.textObserveCalls = 0; stats.maxRafMs = 0;
+    stats.active = true;
+    stepList.append(bulkWrap);
+    await waitForBulkLabel(bulkWrap, '运行耗时 22秒');
+    stats.active = false;
+    const all2000Translated = Array.from(bulkWrap.children).every(b => b.textContent === '运行耗时 22秒');
+    const firstMount = { disconnects: stats.disconnectCalls, observations: stats.textObserveCalls };
+
+    let reorderWrites = 0;
+    const reorderObserver = new OrigMO((records) => { reorderWrites += records.length; });
+    reorderObserver.observe(bulkWrap, { subtree: true, characterData: true });
+    stats.disconnectCalls = 0; stats.textObserveCalls = 0;
+    stats.active = true;
+    bulkWrap.remove();
+    stepList.append(bulkWrap);
+    const sentinel = fixture.container(document.body, {
+      'data-testid': 'settings-app-version-card', title: 'Settings',
+    });
+    for (let f = 0; f < 150 && sentinel.title !== '设置'; f++) await waitFrames(1);
+    if (sentinel.title !== '设置') throw new Error('Reorder scan did not complete');
+    stats.active = false;
+    reorderObserver.disconnect();
+    const reorder = { disconnects: stats.disconnectCalls, observations: stats.textObserveCalls, writes: reorderWrites };
+
+    stats.disconnectCalls = 0; stats.textObserveCalls = 0;
+    stats.active = true;
+    bulkWrap.remove();
+    await waitForBulkLabel(bulkWrap, 'Worked for 22s');
+    const all2000Restored = Array.from(bulkWrap.children).every(b => b.textContent === 'Worked for 22s');
+    stepList.append(bulkWrap);
+    await waitForBulkLabel(bulkWrap, '运行耗时 22秒');
+    stats.active = false;
+    const remount = {
+      disconnects: stats.disconnectCalls,
+      observations: stats.textObserveCalls,
+      all2000Restored,
+      all2000Rebound: Array.from(bulkWrap.children).every(b => b.textContent === '运行耗时 22秒'),
+    };
+
+    // An individually reinserted button must also translate a later source update.
+    fixture.mountStatus(stepList, detachBtn);
+    await waitForBulkLabel(detachBtn.parentElement, '运行耗时 15秒');
+    detachBtn.firstChild.data = 'Worked for 99s';
+    await waitForBulkLabel(detachBtn.parentElement, '运行耗时 99秒');
+
+    window.__TEST_RESULT__ = {
+      turns2000: resTurns,
+      spans2000: resSpans,
+      structTurns,
+      structSpans,
+      structChatDialog,
+      structChatMenu,
+      migratedBench,
+      bigMigratedBench,
+      bulk2000: {
+        firstMount,
+        reorder,
+        remount,
+        maxRafMs: +stats.maxRafMs.toFixed(2),
+        all2000Translated,
+        reinsertedBtnText: detachBtn.textContent,
+      },
+    };
+    window.__TEST_DONE__ = true;
+  } catch (err) {
+    window.__TEST_ERROR__ = err && err.stack ? err.stack : String(err);
+  }
+})();
+</script>
+</body>
+</html>

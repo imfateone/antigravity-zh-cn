@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script src="__FIXTURE_JS_URL__"></script>
+<script>
+const nativeFrame = window.requestAnimationFrame.bind(window);
+const held = [];
+let paused = false;
+window.requestAnimationFrame = callback => {
+  if (!paused) return nativeFrame(callback);
+  held.push(callback);
+  return -held.length;
+};
+const appRoot = fixture.container(document.body);
+const settings = fixture.container(appRoot, {'data-testid':'settings-app-version-card'});
+const steps = fixture.steps(fixture.conversation(appRoot));
+const captures = new Map();
+
+function trigger(id, host = steps) {
+  const button = fixture.status('Thought for 9s', 'thinking-collapsible-trigger');
+  button.setAttribute('aria-controls', id);
+  fixture.mountStatus(host, button);
+  return button;
+}
+
+function observed(label, element) {
+  element.textContent = 'Settings';
+  let writes = 0;
+  const observer = new MutationObserver(records => { writes += records.length; });
+  observer.observe(element, {subtree:true, characterData:true, attributes:true, attributeFilter:['title']});
+  captures.set(label, () => ({
+    text: element.textContent, title: element.title, writes, connected: element.isConnected
+  }));
+  return element;
+}
+
+function portal(label, id, kind = 'shell') {
+  const markup = kind === 'protected' ? {id, class:'bleed-contain'} : {id};
+  const root = fixture.container(document.body, markup);
+  const attrs = { title:'Settings' };
+  if (kind !== 'plain') attrs['data-testid'] = 'settings-app-version-card';
+  const entry = observed(label, fixture.container(root, attrs));
+  return {root, entry};
+}
+
+const registered = {};
+for (const id of ['hop-init', 'detach-init', 'closing-id', 'rename-id', 'shared-id',
+                  'known-id', 'stable-id', 'closed-id', 'same-step-id', 'active-rename-id', 'next-delivery-id']) {
+  registered[id] = trigger(id);
+}
+const known = portal('control_captured_then_rename', 'known-id');
+const closed = portal('control_closed_old_panel', 'closed-id');
+portal('control_active_owner', 'stable-id');
+const dormant = fixture.container(document.body, { id:'preexisting-id' });
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+const frame = () => new Promise(resolve => nativeFrame(resolve));
+const delivery = async () => { await Promise.resolve(); await Promise.resolve(); };
+const wait = async (check) => {
+  for (let i = 0; i < 150; ++i) {
+    if (check()) return;
+    await frame();
+  }
+  throw new Error('Frame condition timed out');
+};
+const resume = () => {
+  paused = false;
+  for (const callback of held.splice(0)) nativeFrame(callback);
+};
+
+(async () => {
+  try {
+    await wait(() => Object.values(registered).every(btn => btn.textContent === '思考耗时 9秒'));
+    await frame();
+    await frame();
+
+    paused = true;
+    const futureMicrotask = trigger('unscanned-microtask');
+    portal('A_remove_before_discovery_after_microtask', 'unscanned-microtask');
+    const futureRetarget = trigger('unscanned-retarget');
+    portal('A_retarget_before_discovery', 'unscanned-retarget');
+    const removedRowGroup = fixture.container(steps, { 'data-step-rows': '' });
+    trigger('unscanned-parent', removedRowGroup);
+    portal('A_remove_unscanned_subtree', 'unscanned-parent');
+    let removedSubtreeScans = 0;
+    let mutationDuringSettlement = false;
+    const createNodeIterator = Document.prototype.createNodeIterator;
+    Document.prototype.createNodeIterator = function (root, ...args) {
+      const iterator = createNodeIterator.call(this, root, ...args);
+      if (root !== removedRowGroup) return iterator;
+      removedSubtreeScans++;
+      const nextNode = iterator.nextNode.bind(iterator);
+      iterator.nextNode = () => {
+        const node = nextNode();
+        if (!mutationDuringSettlement && node === removedRowGroup) {
+          const now = performance.now;
+          performance.now = () => now.call(performance) + 100;
+          queueMicrotask(() => {
+            performance.now = now;
+            const later = portal('C_alias_in_new_delivery_during_settlement', 'next-delivery-id');
+            later.root.removeAttribute('id');
+            mutationDuringSettlement = true;
+          });
+        }
+        return node;
+      };
+      return iterator;
+    };
+    removedRowGroup.remove();
+
+    const fake = trigger('outside-a-real-chat', settings);
+    portal('control_fake_outside_chat_localized', 'outside-a-real-chat');
+    fake.remove();
+
+    const sameTask = trigger('unscanned-same-task');
+    portal('A_remove_before_discovery_same_task', 'unscanned-same-task');
+    sameTask.remove();
+    const dormantOwner = trigger('preexisting-id');
+    observed('D_preexisting_portal_hidden_by_new_duplicate',
+      fixture.container(dormant, { 'data-testid':'settings-app-version-card', title:'Settings' }));
+    dormantOwner.remove();
+    observed('control_new_earlier_for_preexisting',
+      fixture.container(settings, { id:'preexisting-id', title:'Settings' }));
+    const macro = trigger('unscanned-macro');
+    portal('A_remove_before_discovery_after_timeout', 'unscanned-macro');
+    const noShell = trigger('plain-prose');
+    portal('control_default_deny_bare_text', 'plain-prose', 'plain');
+    const bleed = trigger('bleed-prose');
+    portal('control_hard_protected_thought_body', 'bleed-prose', 'protected');
+
+    await delivery();
+    const engineCallbackWasHeld = held.length > 0;
+    futureMicrotask.remove();
+    futureRetarget.setAttribute('aria-controls', 'safe-final-id');
+    portal('control_retarget_final_id', 'safe-final-id');
+    noShell.remove();
+    bleed.remove();
+    await new Promise(resolve => setTimeout(() => { macro.remove(); resolve(); }, 0));
+
+    // All operations below occur in one observer delivery.
+    registered['hop-init'].setAttribute('aria-controls', 'p2-hop');
+    portal('B_registered_two_retargets_loses_intermediate', 'p2-hop');
+    registered['hop-init'].setAttribute('aria-controls', 'p3-hop');
+    portal('control_registered_final_id', 'p3-hop');
+
+    registered['detach-init'].setAttribute('aria-controls', 'p2-detach');
+    portal('B_registered_retarget_then_remove', 'p2-detach');
+    registered['detach-init'].remove();
+
+    const oldAlias = portal('C_panel_changes_id_with_owner_unchanged', 'active-rename-id');
+    oldAlias.root.id = 'renamed-while-controlled';
+
+    const closing = portal('C_loses_id_in_same_delivery', 'closing-id');
+    registered['closing-id'].remove();
+    closing.root.removeAttribute('id');
+
+    const renamed = portal('C_renames_id_in_same_delivery', 'rename-id');
+    registered['rename-id'].remove();
+    renamed.root.id = 'closing-new-name';
+
+    const trailing = portal('D_old_portal_shadows_behind_new_duplicate', 'shared-id');
+    registered['shared-id'].remove();
+    const duplicate = observed('control_new_earlier_duplicate', fixture.container(settings, {id:'shared-id', title:'Settings'}));
+    const earlierShadowsTrailing = document.getElementById('shared-id') === duplicate && trailing.root.isConnected;
+
+    registered['known-id'].remove();
+    known.root.removeAttribute('id');
+
+    registered['closed-id'].remove();
+    closed.root.remove();
+    observed('control_id_reused_after_both_removed', fixture.container(settings, {id:'closed-id', title:'Settings'}));
+
+    portal('control_registered_single_retarget', 'same-step-id');
+    registered['same-step-id'].setAttribute('aria-controls', 'unused-rebound');
+    await delivery();
+    resume();
+
+    // End of the pending structural scan and display writes for the first group.
+    const firstSentinel = fixture.container(settings);
+    firstSentinel.textContent = 'Settings';
+    await wait(() => firstSentinel.textContent === '设置');
+    await frame();
+    await frame();
+    Document.prototype.createNodeIterator = createNodeIterator;
+
+    // Force a real budget boundary before the not-yet-visited button.
+    const partial = document.createElement('div');
+    partial.setAttribute('data-step-rows', '');
+    const gap = fixture.container(partial);
+    const gapParent = fixture.container(partial);
+    const removedBeforeVisit = trigger('unscanned-cross-frame', partial);
+    const liveTail = trigger('survives-cross-frame', partial);
+    for (let i = 0; i < 150; i++) fixture.container(gapParent);
+    portal('A_remove_midscan_before_visiting_trigger', 'unscanned-cross-frame');
+    portal('control_surviving_trigger_after_cut', 'survives-cross-frame');
+    let crossedFrame = false;
+    fixture.yieldAfterVisiting(gap, () => {
+      removedBeforeVisit.remove();
+      gap.remove();
+      crossedFrame = true;
+    });
+    steps.append(partial);
+    const final = fixture.container(settings);
+    final.textContent = 'Settings';
+    await wait(() => crossedFrame && liveTail.textContent === '思考耗时 9秒' && final.textContent === '设置');
+    await frame();
+    await frame();
+
+    window.__TEST_RESULT__ = {
+      engineCallbackWasHeld, earlierShadowsTrailing, crossedFrame, removedSubtreeScans, mutationDuringSettlement,
+      cases: Object.fromEntries([...captures].map(([key, load]) => [key, load()])),
+    };
+    window.__TEST_DONE__ = true;
+  } catch (err) {
+    window.__TEST_ERROR__ = err.stack;
+  }
+})();
+</script>
+</body>
+</html>

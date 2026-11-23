@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script src="__FIXTURE_JS_URL__"></script>
+<script>
+  const stepList = fixture.steps(fixture.conversation(document.body));
+  const wrap = fixture.container(stepList, { 'data-step-rows': '' });
+  for (let i = 0; i < 2000; i++) {
+    const button = fixture.status('Worked for 22s', 'thinking-collapsible-trigger');
+    button.setAttribute('aria-controls', 'pending-thought-' + i);
+    fixture.container(wrap, { class: 'relative' }).append(button);
+  }
+  const tail = fixture.container(document.body, { 'data-testid': 'settings-app-version-card' });
+  tail.textContent = 'Settings';
+  const disruptStartup = '__STARTUP_SCENARIO__' === 'remove-once';
+  const removedDuringStartup = wrap.children[31];
+  if (disruptStartup) {
+    fixture.yieldAfterVisiting(removedDuringStartup, () => removedDuringStartup.remove());
+  }
+  const measureTime = performance.now.bind(performance);
+
+  const longTasks = [];
+  const reportsLongTasks = PerformanceObserver.supportedEntryTypes.includes('longtask');
+  const po = new PerformanceObserver((list) => {
+    for (const e of list.getEntries()) longTasks.push(+e.duration.toFixed(1));
+  });
+  if (reportsLongTasks) po.observe({ entryTypes: ['longtask'] });
+
+  let dclBootMs = 0;
+  const origAddEL = document.addEventListener.bind(document);
+  document.addEventListener = (type, fn, opts) => {
+    if (type === 'DOMContentLoaded' && typeof fn === 'function') {
+      return origAddEL(type, function(...a) {
+        const t0 = measureTime();
+        try { return fn.apply(this, a); } finally { dclBootMs += (measureTime() - t0); }
+      }, opts);
+    }
+    return origAddEL(type, fn, opts);
+  };
+
+  let maxRafMs = 0;
+  const origRAF = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = (fn) => origRAF((ts) => {
+    const t0 = measureTime();
+    try { return fn(ts); } finally {
+      const dt = measureTime() - t0;
+      if (dt > maxRafMs) maxRafMs = dt;
+    }
+  });
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+  (async () => {
+    try {
+      for (let f = 0; f < 250; f++) {
+        await new Promise(r => requestAnimationFrame(r));
+        if (wrap.lastElementChild.textContent === '运行耗时 22秒' && tail.textContent === '设置') {
+          break;
+        }
+      }
+      await new Promise(r => setTimeout(r, 30));
+      const allTranslated = Array.from(wrap.children).every(b => b.textContent === '运行耗时 22秒');
+      window.__TEST_RESULT__ = {
+        dclBootMs: +dclBootMs.toFixed(2),
+        maxRafMs: +maxRafMs.toFixed(2),
+        reportsLongTasks,
+        longTasks,
+        allTranslated,
+        buttonCount: wrap.childElementCount,
+        tailTranslated: tail.textContent === '设置',
+      };
+      window.__TEST_DONE__ = true;
+    } catch (err) {
+      window.__TEST_ERROR__ = err && err.stack ? err.stack : String(err);
+    }
+  })();
+</script>
+</body>
+</html>

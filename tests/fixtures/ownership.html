@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script src="__FIXTURE_JS_URL__"></script>
+<script>
+const settings = fixture.container(document.body, { class: 'settings-modal-container', role: 'dialog' });
+const history = fixture.container(settings, { role: 'log' });
+const historyPrompt = fixture.container(history, { class: 'group/user-input-step' });
+historyPrompt.textContent = 'Review';
+history.append(document.createElement('aside'));
+
+const viewport = fixture.conversation(document.body);
+const stepList = fixture.steps(viewport);
+const prose = fixture.container(stepList);
+prose.innerHTML = `
+  <div data-testid="cascade-system-message-toolbar">
+    <button class="agy-button-icon" aria-label="Good response" data-tooltip-id="first"><svg></svg></button>
+    <button class="agy-button-icon" aria-label="Bad response" data-tooltip-id="second"><svg></svg></button>
+    <span data-screenshot-volatile data-tooltip-id="age">2m</span>
+  </div>
+  <div data-testid="changed-files-card-header">
+    <div><span>2 files changed +99 -23 &gt;</span></div>
+    <button data-testid="changed-files-card-review">Review</button>
+  </div>
+  <div role="dialog"><p>Allow command execution?</p><button>Yes, allow this time</button></div>
+  <div role="menu"><span>Settings</span><span title="Settings">2m</span></div>`;
+fixture.container(prose, { class: 'relative' }).append(fixture.status('Worked for 22s'));
+
+const artifact = fixture.container(settings, { class: 'artifact-sidebar' });
+artifact.innerHTML = '<div role="button"><div><span title="Settings">Review</span></div></div>';
+const migrationTarget = fixture.container(settings, { class: 'prose' });
+const titleToRestore = fixture.container(settings, { title: 'Settings' });
+const titleToKeep = fixture.container(settings, { title: 'Settings' });
+const futureEditor = fixture.container(settings, { title: 'Settings' });
+futureEditor.textContent = 'Settings';
+
+const latest = fixture.status('Worked for 22s');
+const sameValue = fixture.status('Worked for 22s');
+fixture.mountStatus(stepList, latest);
+fixture.mountStatus(stepList, sameValue);
+
+let contentWrites = 0;
+const guard = new MutationObserver((records) => { contentWrites += records.length; });
+function watch(element) {
+  guard.observe(element, { childList: true, subtree: true, attributes: true, characterData: true });
+}
+watch(prose);
+watch(artifact);
+watch(history);
+const originalProse = prose.outerHTML;
+const originalArtifact = artifact.outerHTML;
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+const label = '运行耗时 22秒';
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+async function until(check, description) {
+  for (let i = 0; i < 100; i++) {
+    if (check()) return;
+    await nextFrame();
+  }
+  throw new Error(description);
+}
+function check(condition, description) {
+  if (!condition) throw new Error(description);
+}
+
+(async () => {
+  try {
+    await until(() => latest.textContent === label && sameValue.textContent === label, 'Authentic status labels did not translate');
+
+    historyPrompt.remove();
+    const firstHistoryReply = fixture.container(history);
+    firstHistoryReply.textContent = 'Settings';
+    guard.takeRecords(); // Discard fixture mutations before measuring the engine.
+
+    const panel = fixture.container(document.body, { id: 'expanded-thought' });
+    const panelText = fixture.container(panel, { 'data-testid': 'settings-app-version-card' });
+    panelText.textContent = 'Settings';
+    watch(panel);
+    panelText.title = 'Settings';
+    guard.takeRecords();
+
+    const branch = fixture.container(stepList, { 'data-step-rows': '' });
+    for (let i = 0; i < 260; i++) fixture.container(branch);
+    const trigger = fixture.status('', 'thinking-collapsible-trigger');
+    const title = document.createElement('span');
+    title.textContent = 'Thought for 9s';
+    trigger.append(title);
+    trigger.setAttribute('aria-controls', panel.id);
+    fixture.container(branch, { class: 'relative' }).append(trigger);
+    await until(() => title.textContent === '思考耗时 9秒', 'Wrapped status trigger did not translate');
+    check(panelText.title === 'Settings' && panelText.textContent === 'Settings', 'Same-batch Portal received a write');
+
+    trigger.remove();
+    const retained = fixture.container(panel, { 'data-testid': 'settings-app-version-card' });
+    retained.textContent = 'Settings';
+    guard.takeRecords();
+    latest.firstChild.data = 'Worked for 99s';
+    await until(() => latest.textContent === '运行耗时 99秒', 'Status observer did not translate the new source');
+    check(retained.textContent === 'Settings', 'Still mounted Portal lost its protection');
+    check(contentWrites === 0, 'Protected content received ' + contentWrites + ' mutation records');
+    check(titleToRestore.title === '设置' && titleToKeep.title === '设置', 'Authentic shell titles did not translate');
+    check(futureEditor.textContent === '设置' && futureEditor.title === '设置', 'Authentic shell text or title did not translate');
+
+    const latestText = latest.firstChild;
+    migrationTarget.append(latestText);
+    const sameValueText = sameValue.firstChild;
+    migrationTarget.append(sameValueText);
+    // This is an application-owned assignment even though it matches the prior translation.
+    sameValueText.data = label;
+    migrationTarget.append(titleToRestore, titleToKeep);
+    titleToKeep.title = '设置';
+    futureEditor.contentEditable = 'plaintext-only';
+
+    const swap = fixture.status('Thought for 3s', 'thinking-collapsible-trigger');
+    swap.setAttribute('aria-controls', panel.id);
+    fixture.mountStatus(stepList, swap);
+    await until(() => swap.textContent === '思考耗时 3秒', 'Second trigger did not bind');
+    const id = panel.id;
+    swap.remove();
+    panel.remove();
+    const sameId = fixture.container(document.body, { id, 'data-testid': 'settings-app-version-card' });
+    sameId.textContent = 'Settings';
+    await until(() => sameId.textContent === '设置', 'A different node with a recycled Portal ID lost authorization');
+
+    check(firstHistoryReply.textContent === 'Settings', 'First history reply changed after the prompt unmounted');
+    check(prose.outerHTML === originalProse, 'Unowned chat controls changed');
+    check(artifact.outerHTML === originalArtifact, 'Unmarked artifact preview changed');
+    check(latestText.data === 'Worked for 99s', 'Migrated text did not restore the latest source');
+    check(sameValueText.data === label, 'Migration overwrote an explicit application assignment');
+    check(titleToRestore.title === 'Settings', 'Moved attribute did not restore the last application value');
+    check(titleToKeep.title === '设置', 'Moved attribute overwrote an explicit application assignment');
+    check(futureEditor.textContent === 'Settings' && futureEditor.title === 'Settings', 'Editable scope kept localization residue');
+    window.__TEST_RESULT__ = { contentWrites };
+    window.__TEST_DONE__ = true;
+  } catch (error) {
+    window.__TEST_ERROR__ = error.stack ?? String(error);
+  }
+})();
+</script>
+</body>
+</html>

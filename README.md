@@ -24,7 +24,7 @@
 ## ✨ 核心特性
 
 - 🚀 **零依赖 (Zero Dependencies)** - 自带纯原生 Python 编写的 ASAR 解析与打包算法，无需安装 Node.js，无需 npm，无需 `asar` 命令行工具
-- 🎯 **智能文本匹配 & 对话内容免疫** - 采用底层 `indexOf` 碎片化重组与动态 DOM 替换策略，同时**自动跳过用户消息气泡、AI 回复 Markdown 正文、数学公式、代码/终端、输入编辑区正文与扩展监控组件**，仅汉化 UI 界面壳子，绝不篡改真实对话内容或误翻 `2D`/`3D`/`1M` 等技术标识
+- 🎯 **会话区默认零写入 & UI 槽位白名单** - 基于持久化会话宿主与硬保护边界，对用户消息、AI 裸回复/Markdown 正文、思考过程、产物预览、代码/终端、数学公式、编辑区（含 `contenteditable="plaintext-only"`）与表单提交值实行**默认零写入**；仅对白名单 UI 槽位（应用壳子、设置页、步骤状态触发器、文件汇总卡、反馈操作栏时间戳、确认弹窗固定文案）做非破坏性 `Text.data` 与独立展示属性更新，绝不重写 `innerHTML` 或误翻 `2D`/`3D`/`1M` 等技术标识
 - ⚡ **一键部署** - 执行补丁后自动清理进程并重启软件，实现"敲下回车 → 享受中文"的无缝体验
 - 🛡️ **纯净可逆** - 还原脚本可彻底抹除所有汉化残留，确保随时能"无损回滚"至纯血官方英文版
 - 🧭 **全动态跨平台寻址** - 智能识别系统架构，原生支持 Windows 及 macOS 环境下的路径寻址与进程管理
@@ -74,8 +74,11 @@ python Antigravity-Patcher.py
 ### 1. 免打包劫持 (Unpacked Patching)
 禁用官方 `app.asar` 文件，迫使软件读取注入了汉化代码的解包 `app` 文件夹。
 
-### 2. 动态 DOM 拦截与内容区隔离 (Dynamic DOM Interception)
-在 `preload.js` 中注入 `MutationObserver`，实时监控界面 UI 变化并替换英文文本为中文；同时在节点与事件入口直接短路跳过对话正文、用户消息、Markdown/表格内容、公式、代码/终端与用户输入内容，避免篡改回复及流式输出扫描开销。
+### 2. 会话区默认零写入
+
+渲染器先确认节点属于已知 UI 槽位，再翻译单个 `Text.data` 或展示属性。会话正文、思考面板、产物预览、编辑区和表单业务值保留原文。思考 Portal 按节点身份保护，触发按钮卸载后仍能保护正在显示的内容。
+
+全局观察器处理结构和有限的属性变更。文本监听仅绑定到已授权的界面节点，局部属性监听记录节点脱离后应用自己的赋值。初次扫描、批量清理和翻译写入按帧调度，目标预算为每帧 4 ms。Chromium 夹具中，原位流式正文触发 0 条翻译观察记录，结构化正文插入触发 0 次子树查询。
 
 ### 3. 原生 ASAR 解析器
 使用纯 Python 实现的 ASAR 文件格式解析器，零外部依赖，并内置路径穿越校验、跨进程文件锁与失败自动回滚保护。
@@ -84,13 +87,21 @@ python Antigravity-Patcher.py
 ```bash
 python -m unittest discover -s tests -v
 ```
-涵盖 ASAR 解析安全校验、补丁注入与失败回滚、官方更新缓存版本守护、跨进程锁，以及基于 Node 运行时的 DOM 翻译与对话免疫回归测试。
+涵盖 ASAR 解包、安装与还原、跨进程锁、词典键去重和纯文案逻辑。安装 Node.js 22+ 和 Chromium（例如 Chrome 或 Edge）后，还会运行正文零写入、Portal 与节点复用、2,000 轮对话、2,000 个文本块以及 2,000 个按钮冷启动和重挂载的浏览器回归。
+
+### 5. 维护与打包
+
+- [Antigravity-Patcher.py](Antigravity-Patcher.py) 负责安装、版本切换和注入。[Restore.py](Restore.py) 负责还原。
+- [catalog.js](antigravity_localization/renderer/catalog.js) 保存词典，[formatters.js](antigravity_localization/renderer/formatters.js) 处理时长、状态和其他文案格式。
+- [antigravity_dom.js](antigravity_localization/renderer/antigravity_dom.js) 负责 Antigravity DOM 槽位和正文保护，[engine.js](antigravity_localization/renderer/engine.js) 负责浏览器调度、写入和节点生命周期。
+- [mount_walk.js](antigravity_localization/renderer/mount_walk.js) 在节点被移除时继续跨帧扫描，[portal_registry.js](antigravity_localization/renderer/portal_registry.js) 按节点身份和变更顺序管理思考面板。
+- [Antigravity-Patcher.spec](Antigravity-Patcher.spec) 将渲染器资源并入单文件发行包。从仓库根目录执行 `uvx pyinstaller Antigravity-Patcher.spec`。
 
 ## ⚠️ 已知限制
 
-- **思考日志为英文** - 受限于大模型的即时流式输出架构，智能体后台生成的思考日志（`Thought` 过程）无法汉化，但所有最终回复与前端界面均已 100% 汉化
+- **对话正文与思考内容保持原文** - 为严格保障“正文零写入”、避免篡改代码/技术词与用户数据，用户发送的消息、AI 回复正文、思考过程日志及产物预览正文均按设计保持原文，仅汉化前端 UI 界面壳子与已验证控件槽位
 - **多平台支持** - 目前已完美适配 Windows 以及 macOS (Intel & M芯片) 平台，Linux 暂不支持
-- **版本依赖** - 针对 Antigravity v2.21.1 深度优化，其他版本亦具备高度兼容性
+- **版本依赖** - 当前 DOM 适配面向 Antigravity 2.34。客户端升级后，未识别的 UI 槽位保留原文。
 
 ## 📸 效果展示
 
@@ -98,15 +109,15 @@ python -m unittest discover -s tests -v
 
 ![antigravity-chinese](antigravity-chinese.png)
 
-*汉化后的 Antigravity 界面 - 所有文本已完全汉化*
+*Antigravity 界面汉化示例*
 
 </div>
 
-**界面完全汉化包括：**
+**界面汉化示例**
 - ✅ 侧边栏菜单（新建对话、历史对话、计划任务、项目）
 - ✅ 顶部导航栏（文件、音频、窗口）
 - ✅ 输入框提示文本和模型选择器
-- ✅ 设置页面所有选项和说明
+- ✅ 已适配的设置页面选项和说明
 - ✅ 底层终端操作权限请求弹窗及动态状态提示
 
 > 💡 提示：要查看实际效果，双击运行 `Antigravity-Patcher.exe` 或 `Antigravity-Patcher.py` 即可体验完整的中文界面！
@@ -193,7 +204,7 @@ A: 通常这不是脚本损坏了软件，而是由 Electron 的后台残留机�
 <summary><b>Q: Antigravity 官方每次更新项目后，这个汉化补丁能不能继续使用？</b></summary>
 
 A: **可以无缝继续使用！** 
-从 v2.21.1 版本开始，脚本引入了 **OTA 智能兼容机制**。当官方软件更新时，会释放新的核心文件，此时汉化会自动失效并短暂恢复为英文原版。您只需要**重新运行一次汉化补丁**，脚本会自动侦测到版本发生变化，自动清理旧版缓存并基于官方最新代码重新解包注入，完全兼容后续版本更新。
+客户端更新后可以重新运行汉化补丁。脚本会检测官方核心包的变更，按当前版本重新解包与注入。新版界面出现原文时，可以在 DOM 适配层补充对应的已验证槽位。
 </details>
 
 <details>
@@ -205,8 +216,8 @@ A: 不会。本补丁仅修改界面文本显示，不涉及网络通信、数�
 <details>
 <summary><b>Q: 如何添加新的翻译？</b></summary>
 
-A: 编辑 `Antigravity-Patcher.py` 文件中的 `dictionary` 字典，添加键值对：
-```python
+A: 在 [catalog.js](antigravity_localization/renderer/catalog.js) 的 `dictionary` 中添加键值对。
+```javascript
 "English Text": "中文翻译",
 ```
 然后重新执行汉化脚本。
