@@ -50,6 +50,7 @@
   const updatedAttrs = new Map();
   const revokedSubtrees = new Set();
   const openTooltips = new Set();
+  const openMenus = new Set();
   const portals = createPortalRegistry(connected, index, revoke);
   dom.setPortalBlocker?.(portals.blocks);
   let cleanup = null;
@@ -144,6 +145,10 @@
     if (slot.isTooltip) {
       const tip = text.parentElement?.closest?.('[role="tooltip"][id]');
       if (tip) openTooltips.add(tip);
+    }
+    if (slot.isMenu) {
+      const menu = text.parentElement?.closest?.('[role="menu"][id]');
+      if (menu) openMenus.add(menu);
     }
     const source = text.data;
     const output = slot.format(source);
@@ -362,10 +367,38 @@
     }
   }
 
+  function syncMenusForAttr(oldValue, newValue) {
+    for (const raw of [oldValue, newValue]) {
+      if (!raw || typeof raw !== 'string') continue;
+      for (const id of raw.split(/\s+/)) {
+        if (!id) continue;
+        const menu = document.getElementById(id);
+        if (!menu || menu.getAttribute('role') !== 'menu') continue;
+        if (ancestorIndex.get(menu)?.size) revoke(menu);
+        const prunable = dom.shouldPrune ? dom.shouldPrune(menu) : dom.isProtected(menu);
+        if (!prunable && connected(menu)) mounts.add(menu);
+      }
+    }
+  }
+
+  function refreshOpenMenus() {
+    if (!openMenus.size) return;
+    for (const menu of openMenus) {
+      if (!connected(menu) || !ancestorIndex.get(menu)?.size) {
+        openMenus.delete(menu);
+      } else {
+        revoke(menu);
+      }
+    }
+  }
+
   function queueEligibleMount(element) {
     const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
     if (prunable || !connected(element)) return;
+    const role = element.getAttribute('role');
     if (
+      role === 'menu' ||
+      role === 'dialog' ||
       (dom.shellOwner && dom.shellOwner(element)) ||
       (dom.overviewSlot && dom.overviewSlot(element)) ||
       dom.textSlot(element)
@@ -377,18 +410,33 @@
   function observeAttrChange(element, name, oldValue) {
     if (name === 'aria-controls' || name === 'aria-expanded') {
       if (element.hasAttribute('aria-controls') || portals.hasTrigger(element)) portals.syncTrigger(element);
+      if (name === 'aria-controls') {
+        dom.bumpTooltipRev?.();
+        syncMenusForAttr(oldValue, element.getAttribute('aria-controls'));
+        refreshOpenMenus();
+      }
     } else if (name === 'aria-describedby') {
       dom.bumpTooltipRev?.();
       syncTooltipsForAttr(oldValue, element.getAttribute('aria-describedby'));
       refreshOpenTooltips();
+    } else if (name === 'aria-labelledby') {
+      dom.bumpTooltipRev?.();
+      if (element.getAttribute('role') === 'menu') {
+        if (ancestorIndex.get(element)?.size) revoke(element);
+        const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
+        if (!prunable && connected(element)) mounts.add(element);
+      }
+      refreshOpenMenus();
     } else if (name === 'id') {
       dom.bumpTooltipRev?.();
       portals.indexPanel(element);
       if (connected(element)) portals.inspectPanel(element);
       if (ancestorIndex.get(element)?.size && dom.isProtected(element)) revoke(element);
       const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
-      if (!prunable && connected(element) && element.getAttribute('role') === 'tooltip') mounts.add(element);
+      const role = element.getAttribute('role');
+      if (!prunable && connected(element) && (role === 'tooltip' || role === 'menu')) mounts.add(element);
       refreshOpenTooltips();
+      refreshOpenMenus();
     } else if (name === 'contenteditable') {
       if (dom.isProtected(element)) revoke(element);
       else mounts.add(element);
@@ -400,6 +448,7 @@
       if (ancestorIndex.get(element)?.size) revoke(element);
       queueEligibleMount(element);
       refreshOpenTooltips();
+      refreshOpenMenus();
     } else if (name === 'role' || boundaryAttrSet.has(name)) {
       const nextVal = element.getAttribute(name);
       if (oldValue === nextVal) return;
@@ -413,6 +462,7 @@
       }
       queueEligibleMount(element);
       refreshOpenTooltips();
+      refreshOpenMenus();
     } else {
       queueAttr(element, name);
     }
@@ -423,23 +473,37 @@
     const budget = { remaining: 64 };
     let touchedChildList = false;
     let shouldCheckOpenTooltips = false;
+    let shouldCheckOpenMenus = false;
     for (const record of records) {
       try {
         if (record.type === 'childList') {
           touchedChildList = true;
           walk?.childrenChanged(record);
           for (const node of record.removedNodes) {
-            if (!shouldCheckOpenTooltips && openTooltips.size && node.nodeType === 1 &&
-                (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
-              shouldCheckOpenTooltips = true;
+            if (node.nodeType === 1) {
+              if (!shouldCheckOpenTooltips && openTooltips.size &&
+                  (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
+                shouldCheckOpenTooltips = true;
+              }
+              if (!shouldCheckOpenMenus && openMenus.size &&
+                  (node.hasAttribute('aria-controls') || node.hasAttribute('aria-labelledby') || node.firstElementChild)) {
+                shouldCheckOpenMenus = true;
+              }
             }
             try { reconcileRemoval(node, record.target, budget); } catch (_) {}
           }
           for (const node of record.addedNodes) {
-            if (!shouldCheckOpenTooltips && openTooltips.size && node.nodeType === 1 &&
-                node.getAttribute('role') !== 'tooltip' &&
-                (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
-              shouldCheckOpenTooltips = true;
+            if (node.nodeType === 1) {
+              if (!shouldCheckOpenTooltips && openTooltips.size &&
+                  node.getAttribute('role') !== 'tooltip' &&
+                  (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
+                shouldCheckOpenTooltips = true;
+              }
+              if (!shouldCheckOpenMenus && openMenus.size &&
+                  node.getAttribute('role') !== 'menu' &&
+                  (node.hasAttribute('aria-controls') || node.hasAttribute('aria-labelledby') || node.firstElementChild)) {
+                shouldCheckOpenMenus = true;
+              }
             }
             if (canInspect(node) && connected(node)) mounts.add(node);
           }
@@ -451,6 +515,7 @@
     if (touchedChildList) {
       dom.bumpTooltipRev?.();
       if (shouldCheckOpenTooltips) refreshOpenTooltips();
+      if (shouldCheckOpenMenus) refreshOpenMenus();
     }
     schedule();
   });
@@ -462,7 +527,7 @@
       subtree: true,
       attributes: true,
       attributeOldValue: true,
-      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'aria-describedby', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
+      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'aria-describedby', 'aria-labelledby', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
     });
     mounts.add(document.body);
     schedule();

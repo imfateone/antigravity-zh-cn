@@ -93,31 +93,186 @@
     <span id="aux-bg-badge">2</span>
   </div>
 
-  <!-- P0 Business-Data Modal & Action Guards -->
-  <div data-testid="declared-permissions-modal">
-    <span id="perm-cmd">false</span>
-    <span id="perm-arg">Open</span>
-    <input id="perm-input" placeholder="Edit" value="Settings">
-    <button data-testid="declared-permissions-confirm" id="perm-confirm">Saving...</button>
+  <!-- P0 Business-Data Modal & Action Guards + 7 Realistic HI Modals -->
+  <div role="dialog" class="agy-dialog" id="dlg-decl-perm">
+    <div><h2 id="decl-perm-title">Set up Settings</h2><button aria-label="Close" id="decl-perm-dlg-close"></button></div>
+    <div>
+      <div data-testid="declared-permissions-modal" id="decl-perm-modal">
+        <div id="perm-intro-div">Settings needs a few details from you before it can run.</div>
+        <div>
+          <div data-testid="declared-permissions-arg">
+            <label id="perm-arg">Open</label>
+            <span class="italic" id="perm-no-folder">No folder selected</span>
+            <button data-testid="declared-permissions-arg-folder" id="perm-browse">Browse</button>
+            <input id="perm-input" placeholder="Edit" value="Settings">
+          </div>
+          <div id="perm-grants-wrap">
+            <label id="perm-grant-hdr">Access grants</label>
+            <span class="text-muted-foreground" id="perm-grant-desc">Commands and files these agents can use.</span>
+            <div data-testid="access-grant-group">
+              <button data-testid="access-grant-group-toggle" aria-label="Commands, 2 grants" id="perm-grant-toggle"><span id="perm-grant-lbl">Commands</span><span>(2)</span></button>
+              <div><div><span class="font-mono" id="perm-cmd">false</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div id="perm-footer">
+          <span id="perm-footer-hint">Please fill out all required values to continue.</span>
+          <div>
+            <button id="perm-back">Back</button>
+            <button id="perm-cancel">Cancel</button>
+            <button data-testid="declared-permissions-next" id="perm-next">Next: Review Permissions</button>
+            <button data-testid="declared-permissions-confirm" id="perm-confirm">Saving...</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div data-testid="plugin-source-caution-modal">
-    <strong id="caution-plugin-name">Files</strong>
-    <button data-testid="cancel-plugin-source-caution" id="caution-cancel">Cancel</button>
-    <button data-testid="confirm-plugin-source-caution" id="caution-confirm">Add anyway</button>
-    <button data-testid="review-plugin-source-caution" id="caution-review">Review contents</button>
+
+  <div role="dialog" class="agy-dialog" id="dlg-caution">
+    <div><h2 id="caution-title">Review plugin before installing</h2></div>
+    <div>
+      <div data-testid="plugin-source-caution-modal">
+        <div id="caution-intro">This plugin's source is in third_party, which can have looser review standards than standard Google code. Review its contents before installing.</div>
+        <div><strong id="caution-plugin-name">Files</strong></div>
+        <button data-testid="cancel-plugin-source-caution" id="caution-cancel">Cancel</button>
+        <button data-testid="confirm-plugin-source-caution" id="caution-confirm">Add anyway</button>
+        <button data-testid="review-plugin-source-caution" id="caution-review">Review contents</button>
+      </div>
+    </div>
   </div>
-  <div data-testid="delete-mcp-modal">
-    <strong id="del-mcp-name">Settings</strong>
-    <button data-testid="cancel-delete-mcp" id="del-mcp-cancel">Cancel</button>
-    <button data-testid="confirm-delete-mcp" id="del-mcp-confirm">Delete</button>
+
+  <div role="dialog" class="agy-dialog" id="dlg-conflict">
+    <div><h2 id="conflict-title">Install folder "Settings" is already in use</h2></div>
+    <div>
+      <div data-testid="plugin-install-conflict-modal">
+        <div id="conflict-intro">Replacing removes the currently installed plugin and installs the new one in its place.</div>
+        <div><div data-testid="conflict-current-plugin"><span id="conflict-cur-name">Files</span></div></div>
+        <button data-testid="cancel-plugin-install-conflict" id="conflict-cancel">Cancel</button>
+        <button data-testid="replace-conflicting-plugin" id="conflict-replace">Replacing...</button>
+      </div>
+    </div>
   </div>
-  <div data-testid="delete-sidecar-modal">
-    <strong id="del-sidecar-name">Review</strong>
+
+  <div role="dialog" class="agy-dialog" id="dlg-del-mcp">
+    <div><h2 id="del-mcp-title">Delete MCP Server</h2></div>
+    <div>
+      <div data-testid="delete-mcp-modal">
+        <div id="del-mcp-body">Are you sure you want to delete <strong id="del-mcp-name">Settings</strong>? This will remove it from your MCP configuration.</div>
+        <button data-testid="cancel-delete-mcp" id="del-mcp-cancel">Cancel</button>
+        <button data-testid="confirm-delete-mcp" id="del-mcp-confirm">Delete</button>
+      </div>
+    </div>
   </div>
-  <div data-testid="customize-sidebar-modal">
-    <span id="custom-ext-name">Settings</span>
+
+  <div role="dialog" class="agy-dialog" id="dlg-del-sidecar">
+    <div><h2 id="del-sidecar-title">Delete Task</h2></div>
+    <div>
+      <div data-testid="delete-sidecar-modal">
+        <div id="del-sidecar-body">Are you sure you want to delete <strong id="del-sidecar-name">Review</strong>? This action cannot be undone.</div>
+        <button data-testid="cancel-delete-sidecar" id="del-sidecar-cancel">Cancel</button>
+        <button data-testid="confirm-delete-sidecar" id="del-sidecar-confirm">Delete</button>
+      </div>
+    </div>
   </div>
-  <button data-testid="running-row-stop" aria-label="Stop execution" id="run-stop-btn">Stop</button>
+
+  <div role="dialog" class="agy-dialog" id="dlg-del-skill">
+    <div><h2 id="del-skill-title">Delete Skill</h2></div>
+    <div>
+      <div data-testid="delete-skill-modal">
+        <div id="del-skill-body">Delete <strong id="del-skill-name">Files</strong>? This removes it from your config directory.</div>
+        <div data-testid="delete-skill-reinstall-note"><span id="del-skill-note">This skill came from the marketplace, so you can add it again whenever you need it.</span></div>
+        <div data-testid="delete-skill-error" id="del-skill-err">Open</div>
+        <button data-testid="cancel-delete-skill" id="del-skill-cancel">Cancel</button>
+        <button data-testid="confirm-delete-skill" id="del-skill-confirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div role="dialog" class="agy-dialog" id="dlg-customize-sidebar">
+    <div><h2 id="custom-sidebar-title">Customize Sidebar</h2></div>
+    <div>
+      <div data-testid="customize-sidebar-modal">
+        <div>
+          <div data-testid="row-group-by">
+            <div><div><span><span class="flex items-center gap-2" id="custom-row-group-by">Group By</span></span></div></div>
+            <div><button data-testid="customize-group-by" aria-label="Group By: Workspace" id="custom-btn-group-by">Workspace</button></div>
+          </div>
+          <div data-testid="row-auto-pin">
+            <div><div><span><span class="flex items-center gap-2" id="custom-row-auto-pin">Auto Pin</span></span></div></div>
+            <div><button data-testid="customize-auto-pin" role="switch" aria-label="Auto Pin" id="custom-btn-auto-pin"></button></div>
+          </div>
+          <div data-tooltip-id="tt-idle-1" aria-describedby="tt-idle-menu-1">
+            <div>
+              <div><div><span><span class="flex items-center gap-2" id="custom-row-idle">Idle Conversations</span></span></div></div>
+              <div><button data-testid="customize-idle-limit" aria-label="Idle Conversations: Show 5" id="custom-btn-idle" aria-haspopup="menu" aria-controls="menu-idle-1">Show 5</button></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 id="custom-sec-dec">Decorations</h3>
+          <div>
+            <div>
+              <div><div><span><span class="flex items-center gap-2" id="custom-ext-name">Settings</span></span></div></div>
+              <div><button data-testid="customize-display-ext1" role="switch"></button></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 id="custom-sec-filters">Filters</h3>
+          <div>
+            <div>
+              <div><div><span><span class="flex items-center gap-2" id="custom-row-sched">Show Automation Conversations</span></span></div></div>
+              <div><button data-testid="customize-filter-scheduled" role="switch" aria-label="Show Automation Conversations" id="custom-btn-sched"></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div role="tooltip" id="tt-idle-menu-1"><span id="tip-idle-text">Only applies when grouped by status</span></div>
+
+  <!-- Composer Add Context Menu + Connectors Submenu Guard + Spoofed Menu Guard + Palette Filter Menu -->
+  <div data-testid="agent-input-box">
+    <div class="surface-composer">
+      <div class="agy-composer-footer" data-agent-composer-root="">
+        <button id="add-ctx-btn" aria-label="Add context" aria-haspopup="menu" aria-controls="add-ctx-menu">+</button>
+      </div>
+    </div>
+  </div>
+  <div role="menu" id="add-ctx-menu" aria-labelledby="add-ctx-btn" class="agy-overlay">
+    <div id="ctx-hdr">Add Context</div>
+    <div><span id="ctx-files">Files</span></div>
+    <div><span id="ctx-folder">Folder</span></div>
+    <div><span id="ctx-mentions">Mentions</span></div>
+    <div><span id="ctx-actions">Actions</span></div>
+    <div><span id="ctx-browser">Browser</span></div>
+    <div><span id="ctx-screen-rec">Screen Recording</span></div>
+    <div><span id="ctx-drive">Drive</span><span id="ctx-setup">Set up</span><span id="ctx-login">Log in</span></div>
+    <div role="menuitem" data-testid="composer-connectors-submenu" id="ctx-conn-trigger" aria-haspopup="menu" aria-controls="conn-sub-menu">
+      <span id="ctx-conn-lbl">Connectors</span>
+      <span id="ctx-conn-badge"></span>
+    </div>
+  </div>
+  <div role="menu" id="conn-sub-menu" aria-labelledby="ctx-conn-trigger" class="agy-overlay">
+    <div role="menuitem"><span id="ctx-conn-server">Settings</span></div>
+  </div>
+  <div class="prose">
+    <button id="spoof-menu-trigger" aria-haspopup="menu" aria-controls="spoof-menu">Open</button>
+  </div>
+  <div role="menu" id="spoof-menu" aria-labelledby="spoof-menu-trigger" class="agy-overlay">
+    <div role="menuitem"><span id="ctx-spoof-item">Settings</span></div>
+  </div>
+
+  <button id="pal-filter-btn" data-testid="conversations-palette-filter-trigger" aria-label="Sort and filter conversations (2 active)" aria-haspopup="menu" aria-controls="pal-filter-menu"></button>
+  <div role="menu" id="pal-filter-menu" aria-labelledby="pal-filter-btn" class="agy-overlay">
+    <div id="pal-sort-hdr">Sort Conversations</div>
+    <span data-testid="palette-sort-last_updated" id="pal-last-upd">Last Updated</span>
+    <div id="pal-filter-hdr">Filter</div>
+    <span data-testid="palette-filter-scheduled" id="pal-only-auto">Only Automations</span>
+  </div>
+
+  <button data-testid="running-row-stop" aria-label="Stop execution" aria-describedby="tt-run-stop-1" id="run-stop-btn">Stop</button>
+  <div role="tooltip" id="tt-run-stop-1"><span id="tip-run-stop">Stop</span></div>
 
   <!-- P0 GCP Project Combobox Guard vs Normal Select -->
   <div data-select-popup="" data-testid="gcp-project-combobox-popup" class="agy-overlay">
@@ -202,11 +357,22 @@
     document.getElementById('perm-arg'),
     document.getElementById('perm-input'),
     document.getElementById('caution-plugin-name'),
+    document.getElementById('conflict-cur-name'),
     document.getElementById('del-mcp-name'),
     document.getElementById('del-sidecar-name'),
+    document.getElementById('del-skill-name'),
+    document.getElementById('del-skill-err'),
     document.getElementById('custom-ext-name'),
+    document.getElementById('ctx-conn-server'),
+    document.getElementById('ctx-spoof-item'),
     document.getElementById('run-stop-btn'),
   ];
+  // Construct adjacent text nodes as React renders them for dynamic intro and connector badge
+  const permIntroDiv = document.getElementById('perm-intro-div');
+  permIntroDiv.textContent = '';
+  const permExtNode = document.createTextNode('Settings');
+  permIntroDiv.append(permExtNode, ' needs a few details from you before it can run.');
+  document.getElementById('ctx-conn-badge').append('3', ' on');
   window.__guardedWrites = 0;
   const guardObs = new MutationObserver((records) => {
     window.__guardedWrites += records.length;
@@ -230,7 +396,10 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       if (document.getElementById('dd-overview').textContent === '概览' &&
           document.getElementById('dyn-turn-host').textContent === '设置' &&
           document.getElementById('tip-revoke-text').textContent === '新建终端' &&
-          document.getElementById('dyn-prose-art-btn').textContent === '关闭') {
+          document.getElementById('dyn-prose-art-btn').textContent === '关闭' &&
+          document.getElementById('ctx-hdr').textContent === '添加上下文' &&
+          document.getElementById('pal-only-auto').textContent === '仅看自动化' &&
+          document.getElementById('tip-idle-text').textContent === '仅在按状态分组时生效') {
         break;
       }
     }
@@ -242,6 +411,18 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     const lateDlgBefore = document.getElementById('late-dlg-lbl').textContent;
     const tipRevokeInitial = document.getElementById('tip-revoke-text').textContent;
     const dynProseArtInitial = document.getElementById('dyn-prose-art-btn').textContent;
+    const ctxHdr = document.getElementById('ctx-hdr').textContent;
+    const ctxFiles = document.getElementById('ctx-files').textContent;
+    const ctxFolder = document.getElementById('ctx-folder').textContent;
+    const ctxMentions = document.getElementById('ctx-mentions').textContent;
+    const ctxActions = document.getElementById('ctx-actions').textContent;
+    const ctxBrowser = document.getElementById('ctx-browser').textContent;
+    const ctxScreenRec = document.getElementById('ctx-screen-rec').textContent;
+    const ctxDrive = document.getElementById('ctx-drive').textContent;
+    const ctxSetup = document.getElementById('ctx-setup').textContent;
+    const ctxLogin = document.getElementById('ctx-login').textContent;
+    const ctxConn = document.getElementById('ctx-conn-lbl').textContent;
+    const ctxConnBadge = document.getElementById('ctx-conn-badge').textContent;
 
     // 1. Live badge mutation
     badgeTextNode.data = '8';
@@ -253,8 +434,9 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     document.getElementById('prose-fake-art-btn').setAttribute('title', 'Copy');
     guardObs.takeRecords();
     document.getElementById('dyn-prose-wrap').className = 'prose';
-    // 5. Tooltip aria-describedby unlink revocation
+    // 5. Tooltip & Add Context menu aria revocation
     document.getElementById('tt-revoke-trigger').removeAttribute('aria-describedby');
+    document.getElementById('add-ctx-btn').removeAttribute('aria-controls');
 
     await waitFrames(4);
     document.getElementById('dyn-prose-art-btn').setAttribute('title', 'Copy');
@@ -295,16 +477,72 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       permPh: document.getElementById('perm-input').getAttribute('placeholder'),
       permVal: document.getElementById('perm-input').value,
       permConfirm: document.getElementById('perm-confirm').textContent,
+      declPermTitle: document.getElementById('decl-perm-title').textContent,
+      declPermCloseAria: document.getElementById('decl-perm-dlg-close').getAttribute('aria-label'),
+      permIntroText: permIntroDiv.textContent,
+      permExtNodePreserved: permIntroDiv.firstChild === permExtNode && permExtNode.data === 'Settings',
+      permNoFolder: document.getElementById('perm-no-folder').textContent,
+      permBrowse: document.getElementById('perm-browse').textContent,
+      permGrantHdr: document.getElementById('perm-grant-hdr').textContent,
+      permGrantDesc: document.getElementById('perm-grant-desc').textContent,
+      permGrantToggleAria: document.getElementById('perm-grant-toggle').getAttribute('aria-label'),
+      permGrantLbl: document.getElementById('perm-grant-lbl').textContent,
+      permFooterHint: document.getElementById('perm-footer-hint').textContent,
+      permBack: document.getElementById('perm-back').textContent,
+      permCancel: document.getElementById('perm-cancel').textContent,
+      permNext: document.getElementById('perm-next').textContent,
+      cautionTitle: document.getElementById('caution-title').textContent,
+      cautionIntro: document.getElementById('caution-intro').textContent,
       cautionPluginName: document.getElementById('caution-plugin-name').textContent,
       cautionCancel: document.getElementById('caution-cancel').textContent,
       cautionConfirm: document.getElementById('caution-confirm').textContent,
       cautionReview: document.getElementById('caution-review').textContent,
+      conflictTitle: document.getElementById('conflict-title').textContent,
+      conflictIntro: document.getElementById('conflict-intro').textContent,
+      conflictCurName: document.getElementById('conflict-cur-name').textContent,
+      conflictCancel: document.getElementById('conflict-cancel').textContent,
+      conflictReplace: document.getElementById('conflict-replace').textContent,
+      delMcpTitle: document.getElementById('del-mcp-title').textContent,
+      delMcpBody: document.getElementById('del-mcp-body').textContent,
       delMcpName: document.getElementById('del-mcp-name').textContent,
       delMcpCancel: document.getElementById('del-mcp-cancel').textContent,
       delMcpConfirm: document.getElementById('del-mcp-confirm').textContent,
+      delSidecarTitle: document.getElementById('del-sidecar-title').textContent,
+      delSidecarBody: document.getElementById('del-sidecar-body').textContent,
       delSidecarName: document.getElementById('del-sidecar-name').textContent,
+      delSidecarCancel: document.getElementById('del-sidecar-cancel').textContent,
+      delSidecarConfirm: document.getElementById('del-sidecar-confirm').textContent,
+      delSkillTitle: document.getElementById('del-skill-title').textContent,
+      delSkillBody: document.getElementById('del-skill-body').textContent,
+      delSkillName: document.getElementById('del-skill-name').textContent,
+      delSkillNote: document.getElementById('del-skill-note').textContent,
+      delSkillErr: document.getElementById('del-skill-err').textContent,
+      customSidebarTitle: document.getElementById('custom-sidebar-title').textContent,
+      customRowGroupBy: document.getElementById('custom-row-group-by').textContent,
+      customBtnGroupBy: document.getElementById('custom-btn-group-by').textContent,
+      customBtnGroupByAria: document.getElementById('custom-btn-group-by').getAttribute('aria-label'),
+      customRowAutoPin: document.getElementById('custom-row-auto-pin').textContent,
+      customRowIdle: document.getElementById('custom-row-idle').textContent,
+      customBtnIdle: document.getElementById('custom-btn-idle').textContent,
+      customBtnIdleAria: document.getElementById('custom-btn-idle').getAttribute('aria-label'),
+      customSecDec: document.getElementById('custom-sec-dec').textContent,
+      customSecFilters: document.getElementById('custom-sec-filters').textContent,
+      customRowSched: document.getElementById('custom-row-sched').textContent,
       customExtName: document.getElementById('custom-ext-name').textContent,
+      tipIdleText: document.getElementById('tip-idle-text').textContent,
+      ctxHdr, ctxFiles, ctxFolder, ctxMentions, ctxActions, ctxBrowser,
+      ctxScreenRec, ctxDrive, ctxSetup, ctxLogin, ctxConn, ctxConnBadge,
+      ctxHdrAfter: document.getElementById('ctx-hdr').textContent,
+      ctxDriveAfter: document.getElementById('ctx-drive').textContent,
+      ctxConnServer: document.getElementById('ctx-conn-server').textContent,
+      ctxSpoofItem: document.getElementById('ctx-spoof-item').textContent,
+      palFilterAria: document.getElementById('pal-filter-btn').getAttribute('aria-label'),
+      palSortHdr: document.getElementById('pal-sort-hdr').textContent,
+      palLastUpd: document.getElementById('pal-last-upd').textContent,
+      palFilterHdr: document.getElementById('pal-filter-hdr').textContent,
+      palOnlyAuto: document.getElementById('pal-only-auto').textContent,
       runStopAria: document.getElementById('run-stop-btn').getAttribute('aria-label'),
+      tipRunStop: document.getElementById('tip-run-stop').textContent,
 
       gcpProjText: document.getElementById('gcp-proj-item').textContent,
       gcpProjTitle: document.getElementById('gcp-proj-item').getAttribute('title'),

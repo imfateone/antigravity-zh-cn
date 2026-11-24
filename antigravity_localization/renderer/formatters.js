@@ -315,6 +315,79 @@ const formats = (() => {
     return text;
   }
 
+  const MODAL_TITLE_MAP = new Map([
+    ['Delete MCP Server', '删除 MCP 服务器'],
+    ['Delete Skill', '删除技能'],
+    ['Delete Task', '删除任务'],
+    ['Customize Sidebar', '自定义侧边栏'],
+    ['Review skill before installing', '安装前审阅技能'],
+    ['Review plugin before installing', '安装前审阅插件'],
+  ]);
+
+  function translateModalTitle(text) {
+    if (!text || typeof text !== 'string') return text;
+    const trimmed = text.trim();
+    if (!trimmed) return text;
+    if (MODAL_TITLE_MAP.has(trimmed)) {
+      return replaceTrimmed(text, MODAL_TITLE_MAP.get(trimmed));
+    }
+    let m;
+    if ((m = trimmed.match(/^Set up (.+)$/))) {
+      return replaceTrimmed(text, '配置 ' + m[1]);
+    }
+    if ((m = trimmed.match(/^Review permissions for (.+)$/))) {
+      return replaceTrimmed(text, '审阅 ' + m[1] + ' 的权限');
+    }
+    if ((m = trimmed.match(/^Install folder "(.+)" is already in use$/))) {
+      return replaceTrimmed(text, '安装目录“' + m[1] + '”已被占用');
+    }
+    return text;
+  }
+
+  const MODAL_BODY_MAP = new Map([
+    ['Are you sure you want to delete', '确定要删除'],
+    ['? This will remove it from your MCP configuration.', ' 吗？此操作会将其从 MCP 配置中移除。'],
+    ['? This action cannot be undone.', ' 吗？此操作无法撤销。'],
+    ['? This removes it from your config directory.', ' 吗？此操作会将其从配置目录中移除。'],
+    ['Replacing removes the currently installed plugin and installs the new one in its place.', '替换将移除当前已安装的插件，并在原位置安装新插件。'],
+    ['needs a few details from you before it can run.', '在运行前需要您补充以下信息。'],
+    ['Please fill out all required argument values before continuing.', '继续前请填写所有必填参数值。'],
+    ['Failed to update permissions. Please try again.', '更新权限失败，请重试。'],
+    ['This extension has no declared permissions requiring user input.', '此扩展没有需要用户输入的声明权限。'],
+    ['Please fill out all required values to continue.', '请填写所有必填项以继续。'],
+    ['Resolving permissions...', '正在解析权限...'],
+    ['Agents created by', '由'],
+    ['run in a dedicated', '创建的智能体将在独立的'],
+    ['with its own permissions, which you can change anytime in the', '中运行，拥有独立权限，您可以随时在'],
+    ['settings page.', '设置页面中更改。'],
+    ['Workspaces', '工作区'],
+    ['Folders these agents can access.', '这些智能体可访问的文件夹。'],
+    ['Access grants', '访问授权'],
+    ['Commands and files these agents can use.', '这些智能体可使用的命令和文件。'],
+    ['No folder selected', '未选择文件夹'],
+  ]);
+
+  function translateModalBody(text) {
+    if (!text || typeof text !== 'string') return text;
+    if (text === 'Delete ') return '删除 ';
+    const trimmed = text.trim();
+    if (!trimmed) return text;
+    if (MODAL_BODY_MAP.has(trimmed)) {
+      return replaceTrimmed(text, MODAL_BODY_MAP.get(trimmed));
+    }
+    let m;
+    if ((m = trimmed.match(/^On top of those defaults,\s*(.+)\s+requests the access below\.$/))) {
+      return replaceTrimmed(text, '在默认权限之外，' + m[1] + ' 还请求以下访问权限。');
+    }
+    if ((m = trimmed.match(/^This (plugin|skill)'s source is in (.+), which can have looser review standards than standard Google code\. Review its contents before installing\.$/))) {
+      return replaceTrimmed(
+        text,
+        '此' + (m[1] === 'skill' ? '技能' : '插件') + '的源码位于 ' + m[2] + '，审核标准可能较标准 Google 代码更为宽松。安装前请先审阅其内容。'
+      );
+    }
+    return text;
+  }
+
   function translateComposerText(text) {
     if (!text || typeof text !== 'string') return text;
     const trimmed = text.trim();
@@ -479,6 +552,24 @@ const formats = (() => {
     if (trimmed === 'Add an MCP server above or add a custom one via the MCP Config.') {
       return replaceTrimmed(text, '请在上方添加 MCP 服务器，或通过 MCP 配置添加自定义服务器。');
     }
+    if ((m = trimmed.match(/^Sort and filter conversations \((\d+) active\)$/))) {
+      return replaceTrimmed(text, '排序和筛选对话（已启用 ' + m[1] + ' 项）');
+    }
+    if ((m = trimmed.match(/^Add \((\d+)\)$/))) {
+      return replaceTrimmed(text, '添加 (' + m[1] + ')');
+    }
+    if ((m = trimmed.match(/^Show\s+(\d+)\s+more\s+subagents?$/i))) {
+      return replaceTrimmed(text, '展开其余 ' + m[1] + ' 个子智能体');
+    }
+    if ((m = trimmed.match(/^(Group By|Idle Conversations):\s*(.+)$/))) {
+      const keyZh = dictionaryMap.get(m[1]) ?? m[1];
+      const valZh = dictionaryMap.get(m[2]) ?? m[2];
+      return replaceTrimmed(text, keyZh + '：' + valZh);
+    }
+    if ((m = trimmed.match(/^(Commands|Unsandboxed commands|Read files|Write files|Read URLs|Browser actions|Browser downloads|MCP tools|Admin escalation|Custom|Other),\s*(\d+)\s+grants?$/))) {
+      const lblZh = dictionaryMap.get(m[1]) ?? m[1];
+      return replaceTrimmed(text, lblZh + '，' + m[2] + ' 项授权');
+    }
 
     if (allowRelTime) {
       const relRes = translateRelativeTime(text, allowBareRelTime);
@@ -547,6 +638,8 @@ const formats = (() => {
     feedback: (text) => exactLabel(FEEDBACK_ATTR_MAP, text),
     artifactAction: (text) => exactLabel(ARTIFACT_TOOLBAR_BUTTON_MAP, text),
     permissionTitle: translateInlineDialogTitle,
-    permissionButton: translateInlineDialogButton
+    permissionButton: translateInlineDialogButton,
+    modalTitle: translateModalTitle,
+    modalBody: translateModalBody
   };
 })();

@@ -28,8 +28,7 @@ if str(REPO_DIR) not in sys.path:
 from _ag_common import find_app_dir  # noqa: E402
 
 NATIVE_ANCHORS: list[tuple[str, str]] = [
-    ("dist/tray.js", "'Show Antigravity'"),
-    ("dist/tray.js", "'Quit'"),
+    ("dist/menu.js", "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);"),
     (
         "dist/tray.js",
         "(count > 0 ? `${count}` : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'",
@@ -42,7 +41,6 @@ NATIVE_ANCHORS: list[tuple[str, str]] = [
     ("dist/main.js", "message: 'Are you sure you want to quit?'"),
     ("dist/main.js", "detail: 'There may be agents or background tasks running.'"),
     ("dist/provisionSplash.js", "Setting up WSL: "),
-    ("dist/loadingOverlay.js", ">Loading Antigravity<"),
 ]
 
 _REGION_RULES: list[tuple[str, re.Pattern[str]]] = [
@@ -225,6 +223,9 @@ def parse_dom_routing(dom_js_path: Path = RENDERER_DIR / "antigravity_dom.js") -
     for set_name in (
         "HARD_PROTECTED_TESTIDS",
         "SHELL_TESTIDS",
+        "FIXED_MENU_TRIGGER_TESTIDS",
+        "HI_MODAL_TESTIDS",
+        "CUSTOMIZE_SIDEBAR_FIXED_TESTIDS",
         "OVERVIEW_ROW_TESTIDS",
         "OVERVIEW_AUX_SECTION_TESTIDS",
         "statusIds",

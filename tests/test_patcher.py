@@ -98,7 +98,7 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 {
                     "package.json": b'{"name":"antigravity","version":"2.34.0"}',
                     "dist/preload.js": b"console.log('preload');\n",
-                    "dist/menu.js": b"console.log('menu');\n",
+                    "dist/menu.js": b"const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);\n",
                     "dist/languageServer.js": b"exports.startLanguageServer = async function startLanguageServer() {};\n",
                     "dist/updater.js": b"exports.init = () => {};\n",
                     "dist/tray.js": b"const a = 'Show Antigravity'; const b = 'Quit';\n",
@@ -121,6 +121,10 @@ class TestAntigravityZhPatcher(unittest.TestCase):
             self.assertIn(
                 "Antigravity Chinese Localization Engine",
                 (res_dir / "app" / "dist" / "preload.js").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "item.__agOrigLabel === submenuLabel",
+                (res_dir / "app" / "dist" / "menu.js").read_text(encoding="utf-8"),
             )
             ls_js = res_dir / "app" / "dist" / "languageServer.js"
             self.assertEqual(
@@ -894,16 +898,82 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["permPh"], "Edit")
         self.assertEqual(res["permVal"], "Settings")
         self.assertEqual(res["permConfirm"], "正在保存...")
+        self.assertEqual(res["declPermTitle"], "配置 Settings")
+        self.assertEqual(res["declPermCloseAria"], "关闭")
+        self.assertEqual(res["permIntroText"], "Settings 在运行前需要您补充以下信息。")
+        self.assertTrue(res["permExtNodePreserved"])
+        self.assertEqual(res["permNoFolder"], "未选择文件夹")
+        self.assertEqual(res["permBrowse"], "浏览")
+        self.assertEqual(res["permGrantHdr"], "访问授权")
+        self.assertEqual(res["permGrantDesc"], "这些智能体可使用的命令和文件。")
+        self.assertEqual(res["permGrantToggleAria"], "命令，2 项授权")
+        self.assertEqual(res["permGrantLbl"], "命令")
+        self.assertEqual(res["permFooterHint"], "请填写所有必填项以继续。")
+        self.assertEqual(res["permBack"], "返回")
+        self.assertEqual(res["permCancel"], "取消")
+        self.assertEqual(res["permNext"], "下一步：审阅权限")
+        self.assertEqual(res["cautionTitle"], "安装前审阅插件")
+        self.assertEqual(res["cautionIntro"], "此插件的源码位于 third_party，审核标准可能较标准 Google 代码更为宽松。安装前请先审阅其内容。")
         self.assertEqual(res["cautionPluginName"], "Files")
         self.assertEqual(res["cautionCancel"], "取消")
         self.assertEqual(res["cautionConfirm"], "仍要添加")
         self.assertEqual(res["cautionReview"], "审阅内容")
+        self.assertEqual(res["conflictTitle"], '安装目录“Settings”已被占用')
+        self.assertEqual(res["conflictIntro"], "替换将移除当前已安装的插件，并在原位置安装新插件。")
+        self.assertEqual(res["conflictCurName"], "Files")
+        self.assertEqual(res["conflictCancel"], "取消")
+        self.assertEqual(res["conflictReplace"], "正在替换...")
+        self.assertEqual(res["delMcpTitle"], "删除 MCP 服务器")
+        self.assertEqual(res["delMcpBody"], "确定要删除 Settings 吗？此操作会将其从 MCP 配置中移除。")
         self.assertEqual(res["delMcpName"], "Settings")
         self.assertEqual(res["delMcpCancel"], "取消")
         self.assertEqual(res["delMcpConfirm"], "删除")
+        self.assertEqual(res["delSidecarTitle"], "删除任务")
+        self.assertEqual(res["delSidecarBody"], "确定要删除 Review 吗？此操作无法撤销。")
         self.assertEqual(res["delSidecarName"], "Review")
+        self.assertEqual(res["delSidecarCancel"], "取消")
+        self.assertEqual(res["delSidecarConfirm"], "删除")
+        self.assertEqual(res["delSkillTitle"], "删除技能")
+        self.assertEqual(res["delSkillBody"], "删除 Files 吗？此操作会将其从配置目录中移除。")
+        self.assertEqual(res["delSkillName"], "Files")
+        self.assertEqual(res["delSkillNote"], "此技能来自扩展市场，之后您随时可以重新添加。")
+        self.assertEqual(res["delSkillErr"], "Open")
+        self.assertEqual(res["customSidebarTitle"], "自定义侧边栏")
+        self.assertEqual(res["customRowGroupBy"], "分组方式")
+        self.assertEqual(res["customBtnGroupBy"], "工作区")
+        self.assertEqual(res["customBtnGroupByAria"], "分组方式：工作区")
+        self.assertEqual(res["customRowAutoPin"], "自动固定")
+        self.assertEqual(res["customRowIdle"], "空闲对话")
+        self.assertEqual(res["customBtnIdle"], "显示 5 项")
+        self.assertEqual(res["customBtnIdleAria"], "空闲对话：显示 5 项")
+        self.assertEqual(res["customSecDec"], "装饰项")
+        self.assertEqual(res["customSecFilters"], "筛选")
+        self.assertEqual(res["customRowSched"], "显示自动化对话")
         self.assertEqual(res["customExtName"], "Settings")
+        self.assertEqual(res["tipIdleText"], "仅在按状态分组时生效")
+        self.assertEqual(res["ctxHdr"], "添加上下文")
+        self.assertEqual(res["ctxFiles"], "文件")
+        self.assertEqual(res["ctxFolder"], "文件夹")
+        self.assertEqual(res["ctxMentions"], "提及")
+        self.assertEqual(res["ctxActions"], "操作")
+        self.assertEqual(res["ctxBrowser"], "浏览器")
+        self.assertEqual(res["ctxScreenRec"], "屏幕录制")
+        self.assertEqual(res["ctxDrive"], "云端硬盘")
+        self.assertEqual(res["ctxSetup"], "配置")
+        self.assertEqual(res["ctxLogin"], "登录")
+        self.assertEqual(res["ctxConn"], "连接器")
+        self.assertEqual(res["ctxConnBadge"], "3 个已开启")
+        self.assertEqual(res["ctxHdrAfter"], "Add Context")
+        self.assertEqual(res["ctxDriveAfter"], "Drive")
+        self.assertEqual(res["ctxConnServer"], "Settings")
+        self.assertEqual(res["ctxSpoofItem"], "Settings")
+        self.assertEqual(res["palFilterAria"], "排序和筛选对话（已启用 2 项）")
+        self.assertEqual(res["palSortHdr"], "对话排序")
+        self.assertEqual(res["palLastUpd"], "最后更新")
+        self.assertEqual(res["palFilterHdr"], "筛选")
+        self.assertEqual(res["palOnlyAuto"], "仅看自动化")
         self.assertEqual(res["runStopAria"], "Stop execution")
+        self.assertEqual(res["tipRunStop"], "停止")
 
         self.assertEqual(res["gcpProjText"], "Settings")
         self.assertEqual(res["gcpProjTitle"], "Settings")

@@ -294,22 +294,21 @@ def _inject_all_translations(target_app_dir):
     )
     remove_injected_block(updater_path, "Antigravity Chinese Localization Engine - Auto Update Hook", "自动更新封锁 Hook")
 
-    replace_in_file(tray_path, "'Show Antigravity'", "'显示 Antigravity'", optional=True)
-    replace_in_file(tray_path, "'Quit'", "'退出'", optional=True)
     replace_in_file(
         tray_path,
         "(count > 0 ? `${count}` : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'",
-        "(count > 0 ? `${count} 个智能体运行中` : '暂无运行中的智能体')"
+        "(count > 0 ? `${count} 个智能体运行中` : '暂无运行中的智能体')",
+        expected_count=1,
     )
 
     main_js_path = os.path.join(target_app_dir, "dist", "main.js")
-    replace_in_file(main_js_path, "label: 'No agents running'", "label: '暂无运行中的智能体'")
-    replace_in_file(main_js_path, "label: `Open ${electron_1.app.getName()}`", "label: `打开 ${electron_1.app.getName()}`")
-    replace_in_file(main_js_path, "label: 'Quit'", "label: '退出'")
-    replace_in_file(main_js_path, "buttons: ['Cancel', 'Quit']", "buttons: ['取消', '退出']")
-    replace_in_file(main_js_path, "title: 'Confirm Quit'", "title: '确认退出'")
-    replace_in_file(main_js_path, "message: 'Are you sure you want to quit?'", "message: '确定要退出 Antigravity 吗？'")
-    replace_in_file(main_js_path, "detail: 'There may be agents or background tasks running.'", "detail: '当前可能仍有智能体或后台任务正在运行。'")
+    replace_in_file(main_js_path, "label: 'No agents running'", "label: '暂无运行中的智能体'", expected_count=1)
+    replace_in_file(main_js_path, "label: `Open ${electron_1.app.getName()}`", "label: `打开 ${electron_1.app.getName()}`", expected_count=1)
+    replace_in_file(main_js_path, "label: 'Quit'", "label: '退出'", expected_count=1)
+    replace_in_file(main_js_path, "buttons: ['Cancel', 'Quit']", "buttons: ['取消', '退出']", expected_count=1)
+    replace_in_file(main_js_path, "title: 'Confirm Quit'", "title: '确认退出'", expected_count=1)
+    replace_in_file(main_js_path, "message: 'Are you sure you want to quit?'", "message: '确定要退出 Antigravity 吗？'", expected_count=1)
+    replace_in_file(main_js_path, "detail: 'There may be agents or background tasks running.'", "detail: '当前可能仍有智能体或后台任务正在运行。'", expected_count=1)
 
     splash_path = os.path.join(target_app_dir, "dist", "provisionSplash.js")
     if os.path.exists(splash_path):
@@ -320,9 +319,6 @@ def _inject_all_translations(target_app_dir):
             with open(splash_path, "w", encoding="utf-8") as f:
                 f.write(patched_splash)
             print(f"[成功] 已成功汉化 WSL 启动界面 ({os.path.basename(splash_path)})")
-
-    loading_path = os.path.join(target_app_dir, "dist", "loadingOverlay.js")
-    replace_in_file(loading_path, ">Loading Antigravity<", ">正在加载 Antigravity<", optional=True)
 
 
 def apply_patch(relaunch=True):
