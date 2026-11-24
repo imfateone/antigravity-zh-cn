@@ -322,6 +322,7 @@ const formats = (() => {
     ['Customize Sidebar', '自定义侧边栏'],
     ['Review skill before installing', '安装前审阅技能'],
     ['Review plugin before installing', '安装前审阅插件'],
+    ['Review bundle before adding', '添加捆绑包前审阅'],
   ]);
 
   function translateModalTitle(text) {
@@ -344,22 +345,34 @@ const formats = (() => {
     return text;
   }
 
-  const MODAL_BODY_MAP = new Map([
-    ['Are you sure you want to delete', '确定要删除'],
-    ['? This will remove it from your MCP configuration.', ' 吗？此操作会将其从 MCP 配置中移除。'],
-    ['? This action cannot be undone.', ' 吗？此操作无法撤销。'],
-    ['? This removes it from your config directory.', ' 吗？此操作会将其从配置目录中移除。'],
-    ['Replacing removes the currently installed plugin and installs the new one in its place.', '替换将移除当前已安装的插件，并在原位置安装新插件。'],
+  const PERM_INTRO_MAP = new Map([
     ['needs a few details from you before it can run.', '在运行前需要您补充以下信息。'],
+    ['Agents created by', '由'],
+    ['run in a dedicated', '创建的智能体将在独立的'],
+    ['with its own permissions, which you can change anytime in the', '中运行，拥有独立权限，您可以随时在'],
+    ['settings page.', '设置页面中更改。'],
+  ]);
+
+  function translatePermIntro(text) {
+    if (!text || typeof text !== 'string') return text;
+    const trimmed = text.trim();
+    if (!trimmed) return text;
+    if (PERM_INTRO_MAP.has(trimmed)) {
+      return replaceTrimmed(text, PERM_INTRO_MAP.get(trimmed));
+    }
+    let m;
+    if ((m = trimmed.match(/^On top of those defaults,\s*(.+)\s+requests the access below\.$/))) {
+      return replaceTrimmed(text, '在默认权限之外，' + m[1] + ' 还请求以下访问权限。');
+    }
+    return text;
+  }
+
+  const PERM_DETAIL_MAP = new Map([
     ['Please fill out all required argument values before continuing.', '继续前请填写所有必填参数值。'],
     ['Failed to update permissions. Please try again.', '更新权限失败，请重试。'],
     ['This extension has no declared permissions requiring user input.', '此扩展没有需要用户输入的声明权限。'],
     ['Please fill out all required values to continue.', '请填写所有必填项以继续。'],
     ['Resolving permissions...', '正在解析权限...'],
-    ['Agents created by', '由'],
-    ['run in a dedicated', '创建的智能体将在独立的'],
-    ['with its own permissions, which you can change anytime in the', '中运行，拥有独立权限，您可以随时在'],
-    ['settings page.', '设置页面中更改。'],
     ['Workspaces', '工作区'],
     ['Folders these agents can access.', '这些智能体可访问的文件夹。'],
     ['Access grants', '访问授权'],
@@ -367,22 +380,72 @@ const formats = (() => {
     ['No folder selected', '未选择文件夹'],
   ]);
 
-  function translateModalBody(text) {
+  function translatePermDetail(text) {
+    if (!text || typeof text !== 'string') return text;
+    const trimmed = text.trim();
+    if (!trimmed) return text;
+    if (PERM_DETAIL_MAP.has(trimmed)) {
+      return replaceTrimmed(text, PERM_DETAIL_MAP.get(trimmed));
+    }
+    return text;
+  }
+
+  const DELETE_SKILL_BODY_MAP = new Map([
+    ['? This removes it from your config directory.', ' 吗？此操作会将其从配置目录中移除。'],
+  ]);
+
+  function translateDeleteSkillBody(text) {
     if (!text || typeof text !== 'string') return text;
     if (text === 'Delete ') return '删除 ';
+    const trimmed = text.trim();
+    if (!trimmed) return text;
+    if (DELETE_SKILL_BODY_MAP.has(trimmed)) {
+      return replaceTrimmed(text, DELETE_SKILL_BODY_MAP.get(trimmed));
+    }
+    return text;
+  }
+
+  const CONFLICT_CARD_LABEL_MAP = new Map([
+    ['Currently installed', '当前已安装'],
+    ['Replace with', '替换为'],
+  ]);
+
+  function translateConflictCardLabel(text) {
+    if (!text || typeof text !== 'string') return text;
+    return exactLabel(CONFLICT_CARD_LABEL_MAP, text);
+  }
+
+  const MODAL_BODY_MAP = new Map([
+    ['Are you sure you want to delete', '确定要删除'],
+    ['? This will remove it from your MCP configuration.', ' 吗？此操作会将其从 MCP 配置中移除。'],
+    ['? This action cannot be undone.', ' 吗？此操作无法撤销。'],
+    ['Replacing removes the currently installed plugin and installs the new one in its place.', '替换将移除当前已安装的插件，并在原位置安装新插件。'],
+  ]);
+
+  function translateModalBody(text) {
+    if (!text || typeof text !== 'string') return text;
     const trimmed = text.trim();
     if (!trimmed) return text;
     if (MODAL_BODY_MAP.has(trimmed)) {
       return replaceTrimmed(text, MODAL_BODY_MAP.get(trimmed));
     }
     let m;
-    if ((m = trimmed.match(/^On top of those defaults,\s*(.+)\s+requests the access below\.$/))) {
-      return replaceTrimmed(text, '在默认权限之外，' + m[1] + ' 还请求以下访问权限。');
-    }
     if ((m = trimmed.match(/^This (plugin|skill)'s source is in (.+), which can have looser review standards than standard Google code\. Review its contents before installing\.$/))) {
       return replaceTrimmed(
         text,
         '此' + (m[1] === 'skill' ? '技能' : '插件') + '的源码位于 ' + m[2] + '，审核标准可能较标准 Google 代码更为宽松。安装前请先审阅其内容。'
+      );
+    }
+    if ((m = trimmed.match(/^This plugin in (.+) may have looser code review\. Review its contents before adding the bundle\.$/))) {
+      return replaceTrimmed(
+        text,
+        '捆绑包 ' + m[1] + ' 中的此插件代码审核标准可能较为宽松。添加捆绑包前请先审阅其内容。'
+      );
+    }
+    if ((m = trimmed.match(/^These plugins in (.+) may have looser code review\. Review their contents before adding the bundle\.$/))) {
+      return replaceTrimmed(
+        text,
+        '捆绑包 ' + m[1] + ' 中的这些插件代码审核标准可能较为宽松。添加捆绑包前请先审阅其内容。'
       );
     }
     return text;
@@ -640,6 +703,10 @@ const formats = (() => {
     permissionTitle: translateInlineDialogTitle,
     permissionButton: translateInlineDialogButton,
     modalTitle: translateModalTitle,
-    modalBody: translateModalBody
+    modalBody: translateModalBody,
+    permIntro: translatePermIntro,
+    permDetail: translatePermDetail,
+    deleteSkillBody: translateDeleteSkillBody,
+    conflictCardLabel: translateConflictCardLabel
   };
 })();

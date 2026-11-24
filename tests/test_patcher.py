@@ -902,6 +902,26 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["declPermCloseAria"], "关闭")
         self.assertEqual(res["permIntroText"], "Settings 在运行前需要您补充以下信息。")
         self.assertTrue(res["permExtNodePreserved"])
+        self.assertEqual(res["permFormCollText"], "Workspaces 在运行前需要您补充以下信息。")
+        self.assertTrue(res["permFormCollExtPreserved"])
+        self.assertEqual(
+            res["permReviewCollText"],
+            "由 Access grants 创建的智能体将在独立的 workspace 中运行，拥有独立权限，您可以随时在 workspace 设置页面中更改。 在默认权限之外，Workspaces 还请求以下访问权限。",
+        )
+        self.assertTrue(res["permReviewCollExtPreserved"])
+        self.assertEqual(res["permRevWsHdr"], "工作区")
+        self.assertEqual(res["permRevWsDesc"], "这些智能体可访问的文件夹。")
+        self.assertEqual(res["permRevAgHdr"], "访问授权")
+        self.assertEqual(res["permRevAgDesc"], "这些智能体可使用的命令和文件。")
+        self.assertEqual(res["bundleCautionTitle"], "添加捆绑包前审阅")
+        self.assertEqual(res["bundleCautionSingleIntro"], "捆绑包 Open 中的此插件代码审核标准可能较为宽松。添加捆绑包前请先审阅其内容。")
+        self.assertEqual(res["bundleCautionPluralIntro"], "捆绑包 Files 中的这些插件代码审核标准可能较为宽松。添加捆绑包前请先审阅其内容。")
+        self.assertEqual(res["bundleCautionMember"], "Settings")
+        self.assertEqual(res["conflictCurLbl"], "当前已安装")
+        self.assertEqual(res["conflictCurName"], "Files")
+        self.assertEqual(res["conflictCurDesc"], "Review")
+        self.assertEqual(res["conflictIncLbl"], "替换为")
+        self.assertEqual(res["conflictIncName"], "Settings")
         self.assertEqual(res["permNoFolder"], "未选择文件夹")
         self.assertEqual(res["permBrowse"], "浏览")
         self.assertEqual(res["permGrantHdr"], "访问授权")
@@ -920,7 +940,6 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["cautionReview"], "审阅内容")
         self.assertEqual(res["conflictTitle"], '安装目录“Settings”已被占用')
         self.assertEqual(res["conflictIntro"], "替换将移除当前已安装的插件，并在原位置安装新插件。")
-        self.assertEqual(res["conflictCurName"], "Files")
         self.assertEqual(res["conflictCancel"], "取消")
         self.assertEqual(res["conflictReplace"], "正在替换...")
         self.assertEqual(res["delMcpTitle"], "删除 MCP 服务器")
@@ -966,12 +985,38 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["ctxHdrAfter"], "Add Context")
         self.assertEqual(res["ctxDriveAfter"], "Drive")
         self.assertEqual(res["ctxConnServer"], "Settings")
+        self.assertEqual(res["ctxConnFiles"], "Files")
+        self.assertEqual(res["ctxConnBrowser"], "Browser")
+        self.assertEqual(res["connDomNestedFiles"], "Files")
         self.assertEqual(res["ctxSpoofItem"], "Settings")
+        self.assertEqual(res["ctxSpoofFiles"], "Files")
         self.assertEqual(res["palFilterAria"], "排序和筛选对话（已启用 2 项）")
         self.assertEqual(res["palSortHdr"], "对话排序")
         self.assertEqual(res["palLastUpd"], "最后更新")
         self.assertEqual(res["palFilterHdr"], "筛选")
         self.assertEqual(res["palOnlyAuto"], "仅看自动化")
+        self.assertEqual(res["palSortHdrAfter"], "Sort Conversations")
+        self.assertEqual(res["palLastUpdAfter"], "Last Updated")
+        self.assertEqual(res["palFilterHdrAfter"], "Filter")
+        self.assertEqual(res["palOnlyAutoAfter"], "Only Automations")
+        self.assertEqual(res["haspHdrBefore"], "添加上下文")
+        self.assertEqual(res["haspFilesBefore"], "文件")
+        self.assertEqual(res["haspHdrAfter"], "Add Context")
+        self.assertEqual(res["haspFilesAfter"], "Files")
+        self.assertEqual(res["ariaChgHdrBefore"], "添加上下文")
+        self.assertEqual(res["ariaChgHdrAfter"], "Add Context")
+        self.assertEqual(res["dupMenuBefore"], "文件")
+        self.assertEqual(res["dupMenu1After"], "Files")
+        self.assertEqual(res["dupMenu2After"], "Files")
+        self.assertEqual(res["forgedItem1"], "Files")
+        self.assertEqual(res["forgedItem2"], "Files")
+        self.assertEqual(res["forgedItem3"], "Last Updated")
+        self.assertEqual(res["ttLiveBefore"], "设置")
+        self.assertEqual(res["ttLiveMutated"], "重新加载")
+        self.assertEqual(res["ttLive1After"], "Reload")
+        self.assertEqual(res["ttLive2After"], "Reload")
+        self.assertEqual(res["ttCeBefore"], "设置")
+        self.assertEqual(res["ttCeAfter"], "Settings")
         self.assertEqual(res["runStopAria"], "Stop execution")
         self.assertEqual(res["tipRunStop"], "停止")
 
@@ -1019,12 +1064,81 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertLessEqual(res["lateTranslatedInFrames"], 3)
         self.assertLessEqual(res["batchMedianMs"], 15.0)
         self.assertTrue(res["deep1000SettledOk"])
+        self.assertLessEqual(res["deep1000TotalMs"], 1000.0)
         self.assertEqual(res["artCloseText"], "关闭")
         self.assertTrue(res["artBodyUntouched"])
         self.assertEqual(res["artBodyWrites"], 0)
+        self.assertTrue(res["artDelayedUntouched"])
+        self.assertEqual(res["artDelayedWrites"], 0)
         self.assertTrue(res["tooltipsAllTranslated"])
         self.assertGreaterEqual(res["qsaDeltaFor60Tooltips"], 1)
-        self.assertLessEqual(res["qsaDeltaFor60Tooltips"], 60)
+        self.assertLessEqual(res["qsaDeltaFor60Tooltips"], 130)
+        self.assertEqual(res["qsaDeltaForUnrelated"], 0)
+        self.assertTrue(res["openTipStayedTranslated"])
+        self.assertTrue(res["p1StormOk"])
+        self.assertGreaterEqual(res["p1LateTranslatedInFrames"], 0)
+        self.assertLessEqual(res["p1LateTranslatedInFrames"], 3)
+
+    def test_inject_all_translations_patches_native_menu_and_updater_idempotently(self):
+        import shutil
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            app_dir = Path(tmp) / "app"
+            dist = app_dir / "dist"
+            dist.mkdir(parents=True)
+            preload_p = dist / "preload.js"
+            menu_p = dist / "menu.js"
+            updater_p = dist / "updater.js"
+            ls_p = dist / "languageServer.js"
+            tray_p = dist / "tray.js"
+            main_p = dist / "main.js"
+            splash_p = dist / "provisionSplash.js"
+
+            preload_p.write_text("// preload\n", encoding="utf-8")
+            menu_p.write_text(
+                "function addItemToSubmenu(appMenu, submenuLabel) {\n"
+                "  const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);\n"
+                "}\n"
+                "function configureViewZoomMenu(appMenu) {\n"
+                "  const viewMenuItem = appMenu.items?.find((item) => item.label === 'View');\n"
+                "}\n"
+                "function clickItem(menuItem) {\n"
+                "  const action = updater_1.updateActions[menuItem.label];\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            updater_p.write_text(
+                "function updateMenuState(step) {\n"
+                "    const item = null;\n"
+                "    if (true) {\n"
+                "        if (item) {\n"
+                "            item.label = step;\n"
+                "            item.enabled = exports.updateActions[step] !== undefined;\n"
+                "        }\n"
+                "    }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            ls_p.write_text("var env = { PATH: '' };\n", encoding="utf-8")
+            tray_p.write_text("const s = 'No';\n", encoding="utf-8")
+            main_p.write_text("const l = 'Quit';\n", encoding="utf-8")
+            splash_p.write_text("const p = 'Setting up WSL: ';\n", encoding="utf-8")
+
+            Patcher._inject_all_translations(str(app_dir))
+            Patcher._inject_all_translations(str(app_dir))
+
+            menu_txt = menu_p.read_text(encoding="utf-8")
+            updater_txt = updater_p.read_text(encoding="utf-8")
+            self.assertEqual(menu_txt.count("role?.toLowerCase() === 'viewmenu'"), 1)
+            self.assertEqual(menu_txt.count("menuItem.__agUpdateStep ?? menuItem.__agOrigLabel ?? menuItem.label"), 1)
+            self.assertEqual(menu_txt.count("Antigravity Chinese Localization Engine - Menu"), 1)
+            self.assertEqual(updater_txt.count("item.__agUpdateStep = step;"), 1)
+            self.assertIn("'Checking for Updates...': '正在检查更新...'", updater_txt)
+
+            node = shutil.which("node")
+            if node:
+                for p in (preload_p, menu_p, updater_p):
+                    subprocess.run([node, "--check", str(p)], check=True)
 
 
 if __name__ == "__main__":

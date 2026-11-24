@@ -178,6 +178,7 @@ const nextTask = () => new Promise((r) => setTimeout(r, 0));
     artClose.textContent = 'Close';
     artHdr.appendChild(artClose);
     const artTableWrap = document.createElement('div');
+    artTableWrap.style.cssText = 'contain: strict; content-visibility: hidden; height: 20px; overflow: hidden;';
     const table = document.createElement('table');
     let bodyWrites = 0;
     const bodyCells = [];
@@ -201,6 +202,40 @@ const nextTask = () => new Promise((r) => setTimeout(r, 0));
     w4.end = performance.now();
     await nextTask();
     artObs.disconnect();
+
+    // --- 4b. Delayed 2,000-cell & 10,000-cell fill + unmount inside artifact body ---
+    const delayedCells = [];
+    const frag2k = document.createDocumentFragment();
+    for (let i = 0; i < 2000; i++) {
+      const td = document.createElement('td');
+      td.textContent = 'Files';
+      frag2k.appendChild(td);
+      delayedCells.push(td);
+    }
+    const bulk10kWrap = document.createElement('div');
+    const frag10k = document.createDocumentFragment();
+    for (let i = 0; i < 10000; i++) {
+      const cell = document.createElement('div');
+      cell.textContent = 'Open';
+      frag10k.appendChild(cell);
+    }
+    bulk10kWrap.appendChild(frag10k);
+
+    await nextTask();
+    const w4d = openWindow('p4b_art_delayed');
+    let artDelayedWrites = 0;
+    const artDelayedObs = new MutationObserver((recs) => { artDelayedWrites += recs.length; });
+    artDelayedObs.observe(artTableWrap, { characterData: true, attributes: true, subtree: true });
+    table.appendChild(frag2k);
+    await waitFrames(3);
+    artTableWrap.appendChild(bulk10kWrap);
+    await waitFrames(2);
+    bulk10kWrap.remove();
+    await waitFrames(3);
+    w4d.end = performance.now();
+    await nextTask();
+    artDelayedObs.disconnect();
+    const artDelayedUntouched = delayedCells.every((c) => c.textContent === 'Files' && c.childNodes.length === 1);
 
     // --- 5. 10,000 background nodes + 60 Tooltip opens (4 text leaves each) ---
     const bgWrap = document.createElement('div');
@@ -247,6 +282,63 @@ const nextTask = () => new Promise((r) => setTimeout(r, 0));
     w5.end = performance.now();
     await nextTask();
 
+    // --- 5b. 45 unrelated DOM updates under an open Tooltip ---
+    const openTipTrig = document.createElement('button');
+    openTipTrig.setAttribute('data-testid', 'settings-button');
+    openTipTrig.setAttribute('aria-describedby', 'perf-open-tt');
+    perfRoot.appendChild(openTipTrig);
+    const openTip = document.createElement('div');
+    openTip.setAttribute('role', 'tooltip');
+    openTip.id = 'perf-open-tt';
+    const openTipSpan = document.createElement('span');
+    openTipSpan.textContent = 'Settings';
+    openTip.appendChild(openTipSpan);
+    document.body.appendChild(openTip);
+    await waitUntil(() => openTipSpan.textContent === '设置', 30);
+
+    const qsaBeforeUnrelated = window.__qsaCalls;
+    const w5u = openWindow('p5b_unrelated_under_tooltip');
+    const unrelatedHost = document.createElement('div');
+    perfRoot.appendChild(unrelatedHost);
+    for (let u = 0; u < 45; u++) {
+      const card = document.createElement('div');
+      card.className = u % 2 === 0 ? 'card off' : 'card on';
+      const sp = document.createElement('span');
+      sp.textContent = `Item ${u}`;
+      card.appendChild(sp);
+      unrelatedHost.appendChild(card);
+      await waitFrames(1);
+    }
+    const qsaDeltaForUnrelated = window.__qsaCalls - qsaBeforeUnrelated;
+    const openTipStayedTranslated = openTipSpan.textContent === '设置';
+    w5u.end = performance.now();
+    openTip.remove();
+    await waitFrames(2);
+
+    // --- 6. 48-frame .p-1 storm under 2,000 Settings buttons ---
+    await nextTask();
+    const w6 = openWindow('p6_p1_storm');
+    let p1LateBtn = null;
+    let p1LateTranslatedInFrames = -1;
+    for (let f = 0; f < 48; f++) {
+      const nextCls = f % 2 === 0 ? 'leaf p-1' : 'leaf p-2';
+      for (let i = 0; i < leaves2000.length; i++) {
+        leaves2000[i].className = nextCls;
+      }
+      if (f === 10) {
+        p1LateBtn = document.createElement('button');
+        p1LateBtn.textContent = 'New Conversation';
+        bulkWrap.appendChild(p1LateBtn);
+      }
+      await waitFrames(1);
+      if (p1LateBtn && p1LateTranslatedInFrames === -1 && p1LateBtn.textContent === '新建对话') {
+        p1LateTranslatedInFrames = f - 10;
+      }
+    }
+    w6.end = performance.now();
+    await nextTask();
+    const p1StormOk = leaves2000.every((b) => b.textContent === '打开');
+
     await waitFrames(3);
     const longTasks = allLongTasks.filter((e) =>
       benchWindows.some((w) => e.start + e.duration > w.start && e.start < w.end)
@@ -264,8 +356,14 @@ const nextTask = () => new Promise((r) => setTimeout(r, 0));
       artCloseText: artClose.textContent,
       artBodyUntouched: bodyCells.every((c) => c.textContent === 'Settings'),
       artBodyWrites: bodyWrites,
+      artDelayedUntouched,
+      artDelayedWrites,
       tooltipsAllTranslated,
       qsaDeltaFor60Tooltips,
+      qsaDeltaForUnrelated,
+      openTipStayedTranslated,
+      p1StormOk,
+      p1LateTranslatedInFrames,
     };
     window.__TEST_DONE__ = true;
   } catch (err) {

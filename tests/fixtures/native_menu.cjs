@@ -119,6 +119,88 @@ const updaterMock = {
   },
 };
 
+const patchedUpdaterMock = {
+  updateActions: updaterMock.updateActions,
+  updateMenuState(step) {
+    const menu = MockMenu.getApplicationMenu();
+    const item = menu?.getMenuItemById("check-for-updates");
+    if (item) {
+      const _agUpdateLabels = {
+        "Check for Updates": "检查更新",
+        "Check for Updates...": "检查更新...",
+        "Checking for Updates...": "正在检查更新...",
+        "Downloading Update...": "正在下载更新...",
+        "Restart to Update": "重启以应用更新",
+      };
+      item.__agUpdateStep = step;
+      item.label =
+        (typeof updaterMock._agTranslateUpdateStep === "function"
+          ? updaterMock._agTranslateUpdateStep(step)
+          : "") ||
+        _agUpdateLabels[step] ||
+        step;
+      item.enabled = updaterMock.updateActions[step] !== undefined;
+    }
+  },
+};
+
+function patchedConfigureViewZoomMenu(appMenu) {
+  const viewMenuItem = appMenu.items?.find(
+    (item) =>
+      item.role?.toLowerCase() === "viewmenu" ||
+      item.label === "View" ||
+      item.__agOrigLabel === "View"
+  );
+  const viewSubmenu = viewMenuItem?.submenu;
+  if (!viewSubmenu || !Array.isArray(viewSubmenu.items)) {
+    return false;
+  }
+  const hasBuiltInZoomRole = viewSubmenu.items.some((item) => {
+    const role = item.role?.toLowerCase();
+    return role === "resetzoom" || role === "zoomin" || role === "zoomout";
+  });
+  if (!hasBuiltInZoomRole) return false;
+  const nextItems = [];
+  for (const item of viewSubmenu.items) {
+    const role = item.role?.toLowerCase();
+    if (role === "resetzoom") {
+      nextItems.push(
+        new MockMenuItem({
+          id: "hub-reset-zoom",
+          label: item.label || "Actual Size",
+          accelerator: item.accelerator || "CmdOrCtrl+0",
+        })
+      );
+    } else if (role === "zoomin") {
+      nextItems.push(
+        new MockMenuItem({
+          id: "hub-zoom-in",
+          label: item.label || "Zoom In",
+          accelerator: item.accelerator || "CmdOrCtrl+Plus",
+        }),
+        new MockMenuItem({
+          id: "hub-zoom-in-equal",
+          label: "Zoom In",
+          accelerator: "CmdOrCtrl+=",
+          visible: false,
+        })
+      );
+    } else if (role === "zoomout") {
+      nextItems.push(
+        new MockMenuItem({
+          id: "hub-zoom-out",
+          label: item.label || "Zoom Out",
+          accelerator: item.accelerator || "CmdOrCtrl+-",
+        })
+      );
+    } else {
+      nextItems.push(item);
+    }
+  }
+  viewSubmenu.items.splice(0, viewSubmenu.items.length, ...nextItems);
+  return true;
+}
+
 function patchedAddItemToSubmenu(appMenu, submenuLabel, position, item) {
   const submenuItem = appMenu.items.find(
     (entry) => entry.label === submenuLabel || entry.__agOrigLabel === submenuLabel
@@ -190,6 +272,90 @@ try {
   assert.strictEqual(checkItem.label, "重启以应用更新");
   executeMenuCommand(checkItem, syntheticEvent);
   assert.strictEqual(restartCalls, 2);
+
+  // 1b. Patched updater.updateMenuState + patched menu.js click action lookup across all 4 steps
+  const liveCheckItem = new MockMenuItem({
+    id: "check-for-updates",
+    label: updaterMock.MenuUpdateStep.CheckForUpdates,
+    click: (menuItem) => {
+      const action =
+        patchedUpdaterMock.updateActions[
+          menuItem.__agUpdateStep ?? menuItem.__agOrigLabel ?? menuItem.label
+        ];
+      if (action) action();
+    },
+  });
+  const liveMenu = MockMenu.buildFromTemplate([
+    { label: "&Antigravity", submenu: [liveCheckItem] },
+    { label: "&File", submenu: [{ label: "New Window" }] },
+    {
+      role: "viewmenu",
+      label: "&View",
+      submenu: [
+        { role: "resetzoom", label: "Actual Size" },
+        { role: "zoomin", label: "Zoom In" },
+        { role: "zoomout", label: "Zoom Out" },
+      ],
+    },
+  ]);
+  // Simulate startup BEFORE configureViewZoomMenu runs (menu already translated!)
+  MockMenu.setApplicationMenu(liveMenu);
+  assert.strictEqual(liveMenu.items[1].label, "文件");
+  assert.strictEqual(liveMenu.items[1].__agOrigLabel, "File");
+  assert.strictEqual(liveMenu.items[2].label, "视图");
+  assert.strictEqual(liveMenu.items[2].__agOrigLabel, "View");
+
+  assert.strictEqual(patchedConfigureViewZoomMenu(MockMenu.getApplicationMenu()), true);
+  MockMenu.setApplicationMenu(liveMenu);
+  const resetZoom = liveMenu.getMenuItemById("hub-reset-zoom");
+  const zoomIn = liveMenu.getMenuItemById("hub-zoom-in");
+  const zoomInEqual = liveMenu.getMenuItemById("hub-zoom-in-equal");
+  const zoomOut = liveMenu.getMenuItemById("hub-zoom-out");
+  assert.ok(resetZoom && zoomIn && zoomInEqual && zoomOut);
+  assert.strictEqual(resetZoom.label, "实际大小");
+  assert.strictEqual(zoomIn.label, "放大");
+  assert.strictEqual(zoomInEqual.visible, false);
+  assert.strictEqual(zoomOut.label, "缩小");
+
+  // Also test View menu matched by __agOrigLabel without role
+  const noRoleMenu = MockMenu.buildFromTemplate([
+    {
+      label: "View",
+      submenu: [{ role: "resetzoom", label: "Actual Size" }],
+    },
+  ]);
+  MockMenu.setApplicationMenu(noRoleMenu);
+  assert.strictEqual(noRoleMenu.items[0].label, "视图");
+  assert.strictEqual(patchedConfigureViewZoomMenu(noRoleMenu), true);
+  assert.ok(noRoleMenu.getMenuItemById("hub-reset-zoom"));
+
+  // Restore MockMenu.getApplicationMenu() back to liveMenu for updater transitions
+  MockMenu.setApplicationMenu(liveMenu);
+  patchedUpdaterMock.updateMenuState(updaterMock.MenuUpdateStep.CheckingForUpdates);
+  assert.strictEqual(liveCheckItem.label, "正在检查更新...");
+  assert.strictEqual(liveCheckItem.enabled, false);
+  assert.strictEqual(liveCheckItem.__agUpdateStep, updaterMock.MenuUpdateStep.CheckingForUpdates);
+
+  patchedUpdaterMock.updateMenuState(updaterMock.MenuUpdateStep.DownloadingUpdate);
+  assert.strictEqual(liveCheckItem.label, "正在下载更新...");
+  assert.strictEqual(liveCheckItem.enabled, false);
+
+  patchedUpdaterMock.updateMenuState(updaterMock.MenuUpdateStep.RestartToUpdate);
+  assert.strictEqual(liveCheckItem.label, "重启以应用更新");
+  assert.strictEqual(liveCheckItem.enabled, true);
+  executeMenuCommand(liveCheckItem, syntheticEvent);
+  assert.strictEqual(restartCalls, 3);
+
+  MockMenu.setApplicationMenu(liveMenu);
+  assert.strictEqual(liveCheckItem.label, "重启以应用更新");
+  assert.strictEqual(liveCheckItem.__agOrigLabel, updaterMock.MenuUpdateStep.RestartToUpdate);
+  executeMenuCommand(liveCheckItem, syntheticEvent);
+  assert.strictEqual(restartCalls, 4);
+
+  patchedUpdaterMock.updateMenuState(updaterMock.MenuUpdateStep.CheckForUpdates);
+  assert.strictEqual(liveCheckItem.label, "检查更新");
+  executeMenuCommand(liveCheckItem, syntheticEvent);
+  assert.strictEqual(checkCalls, 2);
 
   // 2. Async Windows WSL submenu: `new MenuItem({ submenu: [...] })` invokes
   // Menu.buildFromTemplate directly, so global hook must NOT translate WSL distros.

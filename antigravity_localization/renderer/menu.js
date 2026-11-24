@@ -46,6 +46,7 @@
   function patchUpdaterActions() {
     try {
       const updater = require('./updater');
+      try { if (updater && typeof updater === 'object') updater._agTranslateUpdateStep = translateLabelStr; } catch (_) {}
       const actions = updater && updater.updateActions;
       if (!actions || typeof actions !== 'object') return;
       for (const [en, zh] of UPDATE_STEP_ALIASES) {
@@ -67,18 +68,29 @@
 
   function translateMenuTree(item) {
     if (!item || typeof item !== 'object') return;
-    const origLabel = typeof item.__agOrigLabel === 'string' ? item.__agOrigLabel : item.label;
-    if (typeof item.label === 'string' && item.label) {
-      const next = translateLabelStr(item.label);
-      if (next !== item.label) {
+    const labelStr = typeof item.label === 'string' ? item.label : '';
+    const hasStep = item.id === 'check-for-updates' && typeof item.__agUpdateStep === 'string' && item.__agUpdateStep;
+    const translatedCurrent = labelStr ? translateLabelStr(labelStr) : labelStr;
+    const origLabel = hasStep
+      ? item.__agUpdateStep
+      : (labelStr && translatedCurrent !== labelStr
+          ? labelStr
+          : (typeof item.__agOrigLabel === 'string' ? item.__agOrigLabel : labelStr));
+    if (labelStr) {
+      const sourceLabel = hasStep ? item.__agUpdateStep : labelStr;
+      const next = translateLabelStr(sourceLabel);
+      const cleanOrig = (origLabel || labelStr).replace(/&([A-Za-z])/g, '$1');
+      if ((cleanOrig && item.__agOrigLabel !== cleanOrig && (next !== labelStr || hasStep)) || next !== labelStr) {
         try {
           Object.defineProperty(item, '__agOrigLabel', {
-            value: origLabel || item.label,
+            value: cleanOrig,
             writable: true,
             configurable: true,
             enumerable: false,
           });
         } catch (_) {}
+      }
+      if (next !== labelStr) {
         try { item.label = next; } catch (_) {}
       }
     }

@@ -15,12 +15,12 @@
     'settings-modal-container', 'agy-overlay', 'agy-dialog',
     'agy-hover-label', 'home-greeting-title', 'surface-composer',
     'agy-composer-footer', 'agy-button-icon', 'artifact-sidebar',
-    'chat-messages', 'chat-scroll-pane', 'p-1',
+    'chat-messages', 'chat-scroll-pane',
     ...(isStandaloneSettings ? ['grow', 'w-full', 'overflow-auto', 'relative', 'flex-grow', 'min-h-0'] : []),
   ]);
   const ROUTING_CLASS_HINT_RE = isStandaloneSettings
-    ? /\b(?:prose|monaco-editor|xterm|katex|bleed-contain|artifact-(?:preview|sidebar)|settings-modal-container|agy-(?:overlay|dialog|hover-label|composer-footer|button-icon)|home-greeting-title|surface-composer|chat-(?:messages|scroll-pane)|p-1|grow|w-full|overflow-auto|relative|flex-grow|min-h-0)\b|group\/user-input-step|(?:thought|thinking|reasoning)-content/
-    : /\b(?:prose|monaco-editor|xterm|katex|bleed-contain|artifact-(?:preview|sidebar)|settings-modal-container|agy-(?:overlay|dialog|hover-label|composer-footer|button-icon)|home-greeting-title|surface-composer|chat-(?:messages|scroll-pane)|p-1)\b|group\/user-input-step|(?:thought|thinking|reasoning)-content/;
+    ? /\b(?:prose|monaco-editor|xterm|katex|bleed-contain|artifact-(?:preview|sidebar)|settings-modal-container|agy-(?:overlay|dialog|hover-label|composer-footer|button-icon)|home-greeting-title|surface-composer|chat-(?:messages|scroll-pane)|grow|w-full|overflow-auto|relative|flex-grow|min-h-0)\b|group\/user-input-step|(?:thought|thinking|reasoning)-content/
+    : /\b(?:prose|monaco-editor|xterm|katex|bleed-contain|artifact-(?:preview|sidebar)|settings-modal-container|agy-(?:overlay|dialog|hover-label|composer-footer|button-icon)|home-greeting-title|surface-composer|chat-(?:messages|scroll-pane))\b|group\/user-input-step|(?:thought|thinking|reasoning)-content/;
 
   function routingClassSignature(cls) {
     if (!cls || typeof cls !== 'string' || !ROUTING_CLASS_HINT_RE.test(cls)) return '';
@@ -49,8 +49,10 @@
   const updatedTexts = new Set();
   const updatedAttrs = new Map();
   const revokedSubtrees = new Set();
-  const openTooltips = new Set();
-  const openMenus = new Set();
+  const trackedPortals = new Map();
+  const portalsByTrigger = new Map();
+  const portalsById = new Map();
+  const dirtyPortals = new Set();
   const portals = createPortalRegistry(connected, index, revoke);
   dom.setPortalBlocker?.(portals.blocks);
   let cleanup = null;
@@ -62,26 +64,48 @@
   }
 
   function index(node, reconcile) {
-    let memberships = new Set();
+    let chain = [];
+    let memberships = null;
     function refresh() {
-      const next = new Set();
       const element = node.nodeType === 1 ? node : node.parentElement;
+      if (chain.length) {
+        let idx = 0;
+        let same = true;
+        for (let parent = element; parent; parent = parent.parentElement) {
+          const entries = ancestorIndex.get(parent);
+          if (!entries || chain[idx++] !== entries) {
+            same = false;
+            break;
+          }
+        }
+        if (same && idx === chain.length) return;
+      }
+      const nextChain = [];
+      const next = new Set();
       for (let parent = element; parent; parent = parent.parentElement) {
         let entries = ancestorIndex.get(parent);
         if (!entries) ancestorIndex.set(parent, entries = new Set());
         entries.add(reconcile);
+        nextChain.push(entries);
         next.add(entries);
       }
-      for (const entries of memberships) {
-        if (!next.has(entries)) entries.delete(reconcile);
+      if (memberships) {
+        for (const entries of memberships) {
+          if (!next.has(entries)) entries.delete(reconcile);
+        }
       }
+      chain = nextChain;
       memberships = next;
     }
     refresh();
     return {
       refresh,
       forget() {
-        for (const entries of memberships) entries.delete(reconcile);
+        if (memberships) {
+          for (const entries of memberships) entries.delete(reconcile);
+        }
+        chain.length = 0;
+        memberships = null;
       },
     };
   }
@@ -92,7 +116,7 @@
 
   function textSlot(text) {
     const element = text.parentElement;
-    return connected(text) && element && !portals.blocks(element) ? dom.textSlot(element) : null;
+    return connected(text) && element && !portals.blocks(element) ? dom.textSlot(element, text) : null;
   }
 
   function releaseText(text, state) {
@@ -104,6 +128,12 @@
     const last = state.translation;
     if (!externallyUpdated && last && text.ownerDocument === document && text.data === last.output) {
       text.data = last.source;
+    }
+    if (state.slot.isTooltip || state.slot.isMenu) {
+      const portal = text.parentElement?.closest?.(state.slot.isMenu ? '[role="menu"][id]' : '[role="tooltip"][id]');
+      if (portal && (!connected(portal) || !ancestorIndex.get(portal)?.size)) {
+        untrackPortal(portal);
+      }
     }
   }
 
@@ -144,11 +174,11 @@
     if (!slot) return;
     if (slot.isTooltip) {
       const tip = text.parentElement?.closest?.('[role="tooltip"][id]');
-      if (tip) openTooltips.add(tip);
+      if (tip) trackPortal(tip, 'tooltip');
     }
     if (slot.isMenu) {
       const menu = text.parentElement?.closest?.('[role="menu"][id]');
-      if (menu) openMenus.add(menu);
+      if (menu) trackPortal(menu, 'menu');
     }
     const source = text.data;
     const output = slot.format(source);
@@ -342,6 +372,129 @@
     }
   }
 
+  function escapeSelectorValue(value) {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(value);
+    }
+    return String(value).replace(/["\\\]\r\n]/g, '\\$&');
+  }
+
+  function addIndexEntry(map, key, val) {
+    let entries = map.get(key);
+    if (!entries) map.set(key, entries = new Set());
+    entries.add(val);
+  }
+
+  function deleteIndexEntry(map, key, val) {
+    const entries = map.get(key);
+    if (!entries) return;
+    entries.delete(val);
+    if (!entries.size) map.delete(key);
+  }
+
+  function untrackPortal(portal) {
+    const info = trackedPortals.get(portal);
+    if (!info) return;
+    trackedPortals.delete(portal);
+    if (info.trigger) deleteIndexEntry(portalsByTrigger, info.trigger, portal);
+    if (info.portalId) deleteIndexEntry(portalsById, info.portalId, portal);
+    if (info.triggerId) deleteIndexEntry(portalsById, info.triggerId, portal);
+    dirtyPortals.delete(portal);
+    dom.invalidatePortal?.(portal);
+  }
+
+  function trackPortal(portal, kind) {
+    if (!portal) return;
+    const portalId = portal.getAttribute('id') || '';
+    const trigger = dom.getPortalOwner?.(portal) || null;
+    const triggerId = trigger?.getAttribute?.('id') || '';
+    const prev = trackedPortals.get(portal);
+    if (
+      prev &&
+      prev.kind === kind &&
+      prev.portalId === portalId &&
+      prev.trigger === trigger &&
+      prev.triggerId === triggerId
+    ) {
+      return;
+    }
+    if (prev) untrackPortal(portal);
+    trackedPortals.set(portal, { kind, portalId, trigger, triggerId });
+    if (trigger) addIndexEntry(portalsByTrigger, trigger, portal);
+    if (portalId) addIndexEntry(portalsById, portalId, portal);
+    if (triggerId) addIndexEntry(portalsById, triggerId, portal);
+  }
+
+  function markPortalDirty(portal) {
+    if (portal) dirtyPortals.add(portal);
+  }
+
+  function markPortalsForIds(rawAttr) {
+    if (!portalsById.size || !rawAttr || typeof rawAttr !== 'string') return;
+    for (const id of rawAttr.split(/\s+/)) {
+      if (!id) continue;
+      const set = portalsById.get(id);
+      if (set) {
+        for (const portal of set) dirtyPortals.add(portal);
+      }
+    }
+  }
+
+  function markTriggerAndDescendantPortalsDirty(element) {
+    if (!portalsByTrigger.size || !element) return;
+    for (const [trigger, set] of portalsByTrigger) {
+      if (trigger === element || !connected(trigger) || (element.nodeType === 1 && element.contains(trigger))) {
+        for (const portal of set) dirtyPortals.add(portal);
+      }
+    }
+  }
+
+  function markSubtreePortalsForAddedNode(node) {
+    if (!trackedPortals.size || node.nodeType !== 1) return;
+    const nid = node.getAttribute('id');
+    if (nid) markPortalsForIds(nid);
+    const desc = node.getAttribute('aria-describedby');
+    if (desc) markPortalsForIds(desc);
+    const ctrls = node.getAttribute('aria-controls');
+    if (ctrls) markPortalsForIds(ctrls);
+    if (!node.firstElementChild || !portalsById.size) return;
+    for (const [id, set] of portalsById) {
+      const esc = escapeSelectorValue(id);
+      if (node.querySelector(`[id="${esc}"], [aria-controls~="${esc}"], [aria-describedby~="${esc}"]`)) {
+        for (const portal of set) dirtyPortals.add(portal);
+      }
+    }
+  }
+
+  function markPortalsForRemovedNode(node) {
+    if (!trackedPortals.size) return;
+    for (const [portal, info] of trackedPortals) {
+      if (
+        portal === node ||
+        !connected(portal) ||
+        (node.nodeType === 1 && node.contains(portal)) ||
+        (info.trigger && (info.trigger === node || !connected(info.trigger) || (node.nodeType === 1 && node.contains(info.trigger))))
+      ) {
+        dirtyPortals.add(portal);
+      }
+    }
+  }
+
+  function flushDirtyPortals() {
+    if (!dirtyPortals.size) return;
+    for (const portal of dirtyPortals) {
+      dom.invalidatePortal?.(portal);
+      if (ancestorIndex.get(portal)?.size) revoke(portal);
+      if (!connected(portal)) {
+        untrackPortal(portal);
+        continue;
+      }
+      const prunable = dom.shouldPrune ? dom.shouldPrune(portal) : dom.isProtected(portal);
+      if (!prunable) mounts.add(portal);
+    }
+    dirtyPortals.clear();
+  }
+
   function syncTooltipsForAttr(oldValue, newValue) {
     for (const raw of [oldValue, newValue]) {
       if (!raw || typeof raw !== 'string') continue;
@@ -349,20 +502,10 @@
         if (!id) continue;
         const tip = document.getElementById(id);
         if (!tip || tip.getAttribute('role') !== 'tooltip') continue;
+        dom.invalidatePortal?.(tip);
         if (ancestorIndex.get(tip)?.size) revoke(tip);
         const prunable = dom.shouldPrune ? dom.shouldPrune(tip) : dom.isProtected(tip);
         if (!prunable && connected(tip)) mounts.add(tip);
-      }
-    }
-  }
-
-  function refreshOpenTooltips() {
-    if (!openTooltips.size) return;
-    for (const tip of openTooltips) {
-      if (!connected(tip) || !ancestorIndex.get(tip)?.size) {
-        openTooltips.delete(tip);
-      } else {
-        revoke(tip);
       }
     }
   }
@@ -374,20 +517,10 @@
         if (!id) continue;
         const menu = document.getElementById(id);
         if (!menu || menu.getAttribute('role') !== 'menu') continue;
+        dom.invalidatePortal?.(menu);
         if (ancestorIndex.get(menu)?.size) revoke(menu);
         const prunable = dom.shouldPrune ? dom.shouldPrune(menu) : dom.isProtected(menu);
         if (!prunable && connected(menu)) mounts.add(menu);
-      }
-    }
-  }
-
-  function refreshOpenMenus() {
-    if (!openMenus.size) return;
-    for (const menu of openMenus) {
-      if (!connected(menu) || !ancestorIndex.get(menu)?.size) {
-        openMenus.delete(menu);
-      } else {
-        revoke(menu);
       }
     }
   }
@@ -411,48 +544,66 @@
     if (name === 'aria-controls' || name === 'aria-expanded') {
       if (element.hasAttribute('aria-controls') || portals.hasTrigger(element)) portals.syncTrigger(element);
       if (name === 'aria-controls') {
-        dom.bumpTooltipRev?.();
-        syncMenusForAttr(oldValue, element.getAttribute('aria-controls'));
-        refreshOpenMenus();
+        const nextVal = element.getAttribute('aria-controls');
+        markPortalsForIds(oldValue);
+        markPortalsForIds(nextVal);
+        markTriggerAndDescendantPortalsDirty(element);
+        syncMenusForAttr(oldValue, nextVal);
       }
     } else if (name === 'aria-describedby') {
-      dom.bumpTooltipRev?.();
-      syncTooltipsForAttr(oldValue, element.getAttribute('aria-describedby'));
-      refreshOpenTooltips();
+      const nextVal = element.getAttribute('aria-describedby');
+      markPortalsForIds(oldValue);
+      markPortalsForIds(nextVal);
+      markTriggerAndDescendantPortalsDirty(element);
+      syncTooltipsForAttr(oldValue, nextVal);
     } else if (name === 'aria-labelledby') {
-      dom.bumpTooltipRev?.();
       if (element.getAttribute('role') === 'menu') {
+        markPortalDirty(element);
+        dom.invalidatePortal?.(element);
         if (ancestorIndex.get(element)?.size) revoke(element);
         const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
         if (!prunable && connected(element)) mounts.add(element);
       }
-      refreshOpenMenus();
+    } else if (name === 'aria-haspopup') {
+      markTriggerAndDescendantPortalsDirty(element);
+      if (element.hasAttribute('aria-controls')) {
+        syncMenusForAttr(null, element.getAttribute('aria-controls'));
+      }
     } else if (name === 'id') {
-      dom.bumpTooltipRev?.();
+      const newId = element.getAttribute('id');
+      markPortalsForIds(oldValue);
+      markPortalsForIds(newId);
+      if (trackedPortals.has(element)) markPortalDirty(element);
+      markTriggerAndDescendantPortalsDirty(element);
       portals.indexPanel(element);
       if (connected(element)) portals.inspectPanel(element);
       if (ancestorIndex.get(element)?.size && dom.isProtected(element)) revoke(element);
       const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
       const role = element.getAttribute('role');
-      if (!prunable && connected(element) && (role === 'tooltip' || role === 'menu')) mounts.add(element);
-      refreshOpenTooltips();
-      refreshOpenMenus();
+      if (role === 'tooltip' || role === 'menu') {
+        dom.invalidatePortal?.(element);
+        if (!prunable && connected(element)) mounts.add(element);
+      }
     } else if (name === 'contenteditable') {
-      if (dom.isProtected(element)) revoke(element);
+      markTriggerAndDescendantPortalsDirty(element);
+      if (element.hasAttribute('aria-controls')) syncMenusForAttr(null, element.getAttribute('aria-controls'));
+      if (element.hasAttribute('aria-describedby')) syncTooltipsForAttr(null, element.getAttribute('aria-describedby'));
+      if (dom.isProtected(element) || element.isContentEditable) revoke(element);
       else mounts.add(element);
     } else if (name === 'class') {
       const nextSig = routingClassSignature(element.getAttribute('class'));
       const prevSig = routingClassSignature(oldValue);
-      if (nextSig === prevSig) return;
-      dom.bumpTooltipRev?.();
+      const isOverviewP1 =
+        element.parentElement?.parentElement?.getAttribute?.('data-testid') === 'overview-panel' &&
+        (element.classList.contains('p-1') || /\bp-1\b/.test(oldValue || ''));
+      if (nextSig === prevSig && !isOverviewP1) return;
+      markTriggerAndDescendantPortalsDirty(element);
       if (ancestorIndex.get(element)?.size) revoke(element);
       queueEligibleMount(element);
-      refreshOpenTooltips();
-      refreshOpenMenus();
     } else if (name === 'role' || boundaryAttrSet.has(name)) {
       const nextVal = element.getAttribute(name);
       if (oldValue === nextVal) return;
-      dom.bumpTooltipRev?.();
+      markTriggerAndDescendantPortalsDirty(element);
       const isBoundary = boundaryAttrSet.has(name);
       if (
         ancestorIndex.get(element)?.size &&
@@ -461,9 +612,13 @@
         revoke(element);
       }
       queueEligibleMount(element);
-      refreshOpenTooltips();
-      refreshOpenMenus();
     } else {
+      if (name === 'aria-label') {
+        if (portalsByTrigger.has(element)) markTriggerAndDescendantPortalsDirty(element);
+        if (element.hasAttribute('aria-controls')) {
+          syncMenusForAttr(null, element.getAttribute('aria-controls'));
+        }
+      }
       queueAttr(element, name);
     }
   }
@@ -471,52 +626,36 @@
   const bodyObserver = new MutationObserver((records) => {
     portals.noteMutations(records);
     const budget = { remaining: 64 };
-    let touchedChildList = false;
-    let shouldCheckOpenTooltips = false;
-    let shouldCheckOpenMenus = false;
+    let lastTarget = null;
+    let lastTargetPruned = false;
     for (const record of records) {
       try {
         if (record.type === 'childList') {
-          touchedChildList = true;
-          walk?.childrenChanged(record);
+          if (record.target !== lastTarget) {
+            lastTarget = record.target;
+            lastTargetPruned = record.target?.nodeType === 1 &&
+              Boolean(dom.shouldPrune ? dom.shouldPrune(record.target) : dom.isProtected(record.target));
+          }
+          const targetPruned = lastTargetPruned;
+          if (!targetPruned) walk?.childrenChanged(record);
           for (const node of record.removedNodes) {
-            if (node.nodeType === 1) {
-              if (!shouldCheckOpenTooltips && openTooltips.size &&
-                  (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
-                shouldCheckOpenTooltips = true;
-              }
-              if (!shouldCheckOpenMenus && openMenus.size &&
-                  (node.hasAttribute('aria-controls') || node.hasAttribute('aria-labelledby') || node.firstElementChild)) {
-                shouldCheckOpenMenus = true;
-              }
+            markPortalsForRemovedNode(node);
+            if (!targetPruned ||
+                (node.nodeType === 1 && ancestorIndex.get(node)?.size) ||
+                (node.nodeType === 3 && textSlots.has(node))) {
+              try { reconcileRemoval(node, record.target, budget); } catch (_) {}
             }
-            try { reconcileRemoval(node, record.target, budget); } catch (_) {}
           }
           for (const node of record.addedNodes) {
-            if (node.nodeType === 1) {
-              if (!shouldCheckOpenTooltips && openTooltips.size &&
-                  node.getAttribute('role') !== 'tooltip' &&
-                  (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
-                shouldCheckOpenTooltips = true;
-              }
-              if (!shouldCheckOpenMenus && openMenus.size &&
-                  node.getAttribute('role') !== 'menu' &&
-                  (node.hasAttribute('aria-controls') || node.hasAttribute('aria-labelledby') || node.firstElementChild)) {
-                shouldCheckOpenMenus = true;
-              }
-            }
-            if (canInspect(node) && connected(node)) mounts.add(node);
+            markSubtreePortalsForAddedNode(node);
+            if (!targetPruned && canInspect(node) && connected(node)) mounts.add(node);
           }
         } else {
           observeAttrChange(record.target, record.attributeName, record.oldValue);
         }
       } catch (_) {}
     }
-    if (touchedChildList) {
-      dom.bumpTooltipRev?.();
-      if (shouldCheckOpenTooltips) refreshOpenTooltips();
-      if (shouldCheckOpenMenus) refreshOpenMenus();
-    }
+    flushDirtyPortals();
     schedule();
   });
 
@@ -527,7 +666,7 @@
       subtree: true,
       attributes: true,
       attributeOldValue: true,
-      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'aria-describedby', 'aria-labelledby', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
+      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'aria-describedby', 'aria-labelledby', 'aria-haspopup', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
     });
     mounts.add(document.body);
     schedule();

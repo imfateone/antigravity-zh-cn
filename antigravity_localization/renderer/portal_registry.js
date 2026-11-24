@@ -48,9 +48,34 @@ function createPortalRegistry(connected, index, onProtect) {
   }
 
   function noteMutations(records) {
+    let lastTarget = null;
+    let lastTargetPruned = false;
     for (const record of records) {
       revision++;
       if (record.type === 'childList') {
+        if (record.target !== lastTarget) {
+          lastTarget = record.target;
+          lastTargetPruned = record.target?.nodeType === 1 &&
+            Boolean(dom.shouldPrune ? dom.shouldPrune(record.target) : dom.isProtected?.(record.target));
+        }
+        if (lastTargetPruned) {
+          let needsTracking = false;
+          for (const node of record.removedNodes) {
+            if (node.nodeType === 1 && (triggers.has(node) || indexedPanels.has(node) || (node.id && panelsById.has(node.id)))) {
+              needsTracking = true;
+              break;
+            }
+          }
+          if (!needsTracking) {
+            for (const node of record.addedNodes) {
+              if (node.nodeType === 1 && (triggers.has(node) || indexedPanels.has(node) || (node.id && panelsById.has(node.id)))) {
+                needsTracking = true;
+                break;
+              }
+            }
+          }
+          if (!needsTracking) continue;
+        }
         beginRecord();
         let previous = record.previousSibling;
         for (const node of record.removedNodes) {

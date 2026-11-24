@@ -27,20 +27,28 @@ if str(REPO_DIR) not in sys.path:
 
 from _ag_common import find_app_dir  # noqa: E402
 
-NATIVE_ANCHORS: list[tuple[str, str]] = [
-    ("dist/menu.js", "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);"),
+NATIVE_ANCHORS: list[tuple[str, str, int]] = [
+    ("dist/menu.js", "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);", 1),
+    ("dist/menu.js", "const viewMenuItem = appMenu.items?.find((item) => item.label === 'View');", 1),
+    ("dist/menu.js", "const action = updater_1.updateActions[menuItem.label];", 1),
+    (
+        "dist/updater.js",
+        "        if (item) {\n            item.label = step;\n            item.enabled = exports.updateActions[step] !== undefined;\n        }",
+        1,
+    ),
     (
         "dist/tray.js",
         "(count > 0 ? `${count}` : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'",
+        1,
     ),
-    ("dist/main.js", "label: 'No agents running'"),
-    ("dist/main.js", "label: `Open ${electron_1.app.getName()}`"),
-    ("dist/main.js", "label: 'Quit'"),
-    ("dist/main.js", "buttons: ['Cancel', 'Quit']"),
-    ("dist/main.js", "title: 'Confirm Quit'"),
-    ("dist/main.js", "message: 'Are you sure you want to quit?'"),
-    ("dist/main.js", "detail: 'There may be agents or background tasks running.'"),
-    ("dist/provisionSplash.js", "Setting up WSL: "),
+    ("dist/main.js", "label: 'No agents running'", 1),
+    ("dist/main.js", "label: `Open ${electron_1.app.getName()}`", 1),
+    ("dist/main.js", "label: 'Quit'", 1),
+    ("dist/main.js", "buttons: ['Cancel', 'Quit']", 1),
+    ("dist/main.js", "title: 'Confirm Quit'", 1),
+    ("dist/main.js", "message: 'Are you sure you want to quit?'", 1),
+    ("dist/main.js", "detail: 'There may be agents or background tasks running.'", 1),
+    ("dist/provisionSplash.js", "Setting up WSL: ", 1),
 ]
 
 _REGION_RULES: list[tuple[str, re.Pattern[str]]] = [
@@ -172,7 +180,7 @@ def _read_native_target(app_dir: Path, rel_path: str) -> tuple[str | None, str]:
         asar_file = resources_dir / asar_name
         raw = read_asar_file(asar_file, rel_path)
         if raw is not None:
-            return raw.decode("utf-8", errors="replace"), asar_name
+            return raw.decode("utf-8", errors="replace").replace("\r\n", "\n"), asar_name
     unpacked = resources_dir / "app" / Path(*rel_path.split("/"))
     if unpacked.is_file():
         return unpacked.read_text(encoding="utf-8", errors="replace"), "resources/app"
@@ -187,16 +195,24 @@ def audit_native_anchors(app_dir: str | Path | None) -> list[dict]:
         return []
     file_cache: dict[str, tuple[str | None, str]] = {}
     results: list[dict] = []
-    for rel_path, anchor in NATIVE_ANCHORS:
+    for rel_path, anchor, expected_count in NATIVE_ANCHORS:
         if rel_path not in file_cache:
             file_cache[rel_path] = _read_native_target(app_path, rel_path)
         content, source = file_cache[rel_path]
         occ = content.count(anchor) if content is not None else 0
-        status = "missing_file" if content is None else ("ok" if occ > 0 else "drifted")
+        if content is None:
+            status = "missing_file"
+        elif occ == 0:
+            status = "drifted"
+        elif occ != expected_count:
+            status = "unexpected_count"
+        else:
+            status = "ok"
         results.append(
             {
                 "file": rel_path,
                 "anchor": anchor,
+                "expected_count": expected_count,
                 "occurrences": occ,
                 "source": source,
                 "status": status,
@@ -223,6 +239,8 @@ def parse_dom_routing(dom_js_path: Path = RENDERER_DIR / "antigravity_dom.js") -
     for set_name in (
         "HARD_PROTECTED_TESTIDS",
         "SHELL_TESTIDS",
+        "SELF_OWNED_MENU_TESTIDS",
+        "MENU_SCOPED_TESTIDS",
         "FIXED_MENU_TRIGGER_TESTIDS",
         "HI_MODAL_TESTIDS",
         "CUSTOMIZE_SIDEBAR_FIXED_TESTIDS",
@@ -293,14 +311,23 @@ def run_audit(
             tmp_bundle.write_bytes(bundle_bytes)
             extracted = _invoke_node_extractor(tmp_bundle, renderer_dir=renderer_dir)
 
+    bundle_raw = raw_bytes if bundle_path else bundle_bytes
+    bundle_text = bundle_raw.decode("utf-8", errors="replace")
     dom_routing = parse_dom_routing(renderer_dir / "antigravity_dom.js")
     referenced_set = set(dom_routing["all_referenced_testids"])
     shell_set = set(dom_routing["shell_testids"])
     bundle_testids = extracted["testids"]
     bundle_id_set = set(bundle_testids.keys())
+    has_detail_template = bool(re.search(r"`\$\{[^}`]+\}-detail`", bundle_text))
 
-    routed_in_bundle = sorted(referenced_set & bundle_id_set)
-    stale_routed = sorted(referenced_set - bundle_id_set)
+    resolved_bundle_ids = set(bundle_id_set)
+    if has_detail_template:
+        for tid in referenced_set:
+            if tid.endswith("-detail") and tid[:-7] in bundle_id_set:
+                resolved_bundle_ids.add(tid)
+
+    routed_in_bundle = sorted(referenced_set & resolved_bundle_ids)
+    stale_routed = sorted(referenced_set - resolved_bundle_ids)
 
     region_stats: dict[str, dict] = defaultdict(
         lambda: {
@@ -402,7 +429,7 @@ def diff_audits(old_audit: dict, new_audit: dict) -> dict:
     drifted_now = [
         {"file": a["file"], "anchor": a["anchor"]}
         for a in (new_audit.get("native_anchors") or [])
-        if a.get("status") == "drifted"
+        if a.get("status") in ("drifted", "unexpected_count")
     ]
     return {
         "added_testids": sorted(new_ids - old_ids),

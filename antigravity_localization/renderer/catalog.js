@@ -1596,6 +1596,8 @@ const catalog = (() => {
     "Unpin conversation": "取消固定对话",
     "Pin conversation": "固定对话",
     "Open link": "打开链接",
+    "Review bundle before adding": "添加捆绑包前审阅",
+    "Replace with": "替换为",
     "Running processes are killed. This cannot be undone.": "正在运行的进程将被终止，此操作无法撤销。"
 };
 

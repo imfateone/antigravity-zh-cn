@@ -90,6 +90,7 @@ assert.equal(formats.modalTitle('Delete Task'), '删除任务');
 assert.equal(formats.modalTitle('Customize Sidebar'), '自定义侧边栏');
 assert.equal(formats.modalTitle('Review skill before installing'), '安装前审阅技能');
 assert.equal(formats.modalTitle('Review plugin before installing'), '安装前审阅插件');
+assert.equal(formats.modalTitle('Review bundle before adding'), '添加捆绑包前审阅');
 assert.equal(formats.modalTitle('Set up Settings'), '配置 Settings');
 assert.equal(formats.modalTitle('Review permissions for Files'), '审阅 Files 的权限');
 assert.equal(formats.modalTitle('Install folder "Settings" is already in use'), '安装目录“Settings”已被占用');
@@ -97,17 +98,50 @@ assert.equal(formats.modalTitle('Settings'), 'Settings');
 
 assert.equal(formats.modalBody('Are you sure you want to delete '), '确定要删除 ');
 assert.equal(formats.modalBody('? This will remove it from your MCP configuration.'), ' 吗？此操作会将其从 MCP 配置中移除。');
-assert.equal(formats.modalBody('Delete '), '删除 ');
+assert.equal(formats.modalBody('Delete '), 'Delete ');
 assert.equal(formats.modalBody('Delete'), 'Delete');
 assert.equal(formats.modalBody('Settings'), 'Settings');
 assert.equal(formats.modalBody('false'), 'false');
 assert.equal(formats.modalBody('Open'), 'Open');
 assert.equal(formats.modalBody('workspace'), 'workspace');
+assert.equal(formats.modalBody('Workspaces'), 'Workspaces');
+assert.equal(formats.modalBody('Access grants'), 'Access grants');
+assert.equal(formats.modalBody('No folder selected'), 'No folder selected');
 assert.equal(
   formats.modalBody("This plugin's source is in foo and bar, which can have looser review standards than standard Google code. Review its contents before installing."),
   '此插件的源码位于 foo and bar，审核标准可能较标准 Google 代码更为宽松。安装前请先审阅其内容。'
 );
 assert.equal(
-  formats.modalBody(' On top of those defaults, Settings requests the access below.'),
+  formats.modalBody('This plugin in Open may have looser code review. Review its contents before adding the bundle.'),
+  '捆绑包 Open 中的此插件代码审核标准可能较为宽松。添加捆绑包前请先审阅其内容。'
+);
+assert.equal(
+  formats.modalBody('These plugins in Files may have looser code review. Review their contents before adding the bundle.'),
+  '捆绑包 Files 中的这些插件代码审核标准可能较为宽松。添加捆绑包前请先审阅其内容。'
+);
+
+assert.equal(formats.permIntro(' needs a few details from you before it can run.'), ' 在运行前需要您补充以下信息。');
+assert.equal(formats.permIntro('Agents created by '), '由 ');
+assert.equal(formats.permIntro('Workspaces'), 'Workspaces');
+assert.equal(formats.permIntro('Access grants'), 'Access grants');
+assert.equal(formats.permIntro('No folder selected'), 'No folder selected');
+assert.equal(formats.permIntro('Delete '), 'Delete ');
+assert.equal(
+  formats.permIntro(' On top of those defaults, Settings requests the access below.'),
   ' 在默认权限之外，Settings 还请求以下访问权限。'
 );
+
+assert.equal(formats.permDetail('Workspaces'), '工作区');
+assert.equal(formats.permDetail('Access grants'), '访问授权');
+assert.equal(formats.permDetail('No folder selected'), '未选择文件夹');
+assert.equal(formats.permDetail('Settings'), 'Settings');
+assert.equal(formats.permDetail('workspace'), 'workspace');
+
+assert.equal(formats.deleteSkillBody('Delete '), '删除 ');
+assert.equal(formats.deleteSkillBody('? This removes it from your config directory.'), ' 吗？此操作会将其从配置目录中移除。');
+assert.equal(formats.deleteSkillBody('Delete'), 'Delete');
+assert.equal(formats.deleteSkillBody('Workspaces'), 'Workspaces');
+
+assert.equal(formats.conflictCardLabel('Currently installed'), '当前已安装');
+assert.equal(formats.conflictCardLabel('Replace with'), '替换为');
+assert.equal(formats.conflictCardLabel('Settings'), 'Settings');

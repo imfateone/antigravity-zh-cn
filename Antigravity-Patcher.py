@@ -285,7 +285,46 @@ def _inject_all_translations(target_app_dir):
         optional=True,
         expected_count=1,
     )
+    replace_in_file(
+        menu_path,
+        "const viewMenuItem = appMenu.items?.find((item) => item.label === 'View');",
+        "const viewMenuItem = appMenu.items?.find((item) => item.role?.toLowerCase() === 'viewmenu' || item.label === 'View' || item.__agOrigLabel === 'View');",
+        optional=True,
+        expected_count=1,
+    )
+    replace_in_file(
+        menu_path,
+        "const action = updater_1.updateActions[menuItem.label];",
+        "const action = updater_1.updateActions[menuItem.__agUpdateStep ?? menuItem.__agOrigLabel ?? menuItem.label];",
+        optional=True,
+        expected_count=1,
+    )
     append_once(menu_path, MENU_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine - Menu", "Menu Translator Injection")
+    replace_in_file(
+        updater_path,
+        (
+            "        if (item) {\n"
+            "            item.label = step;\n"
+            "            item.enabled = exports.updateActions[step] !== undefined;\n"
+            "        }"
+        ),
+        (
+            "        if (item) {\n"
+            "            const _agUpdateLabels = {\n"
+            "                'Check for Updates': '检查更新',\n"
+            "                'Check for Updates...': '检查更新...',\n"
+            "                'Checking for Updates...': '正在检查更新...',\n"
+            "                'Downloading Update...': '正在下载更新...',\n"
+            "                'Restart to Update': '重启以应用更新',\n"
+            "            };\n"
+            "            item.__agUpdateStep = step;\n"
+            "            item.label = (typeof exports._agTranslateUpdateStep === 'function' ? exports._agTranslateUpdateStep(step) : '') || _agUpdateLabels[step] || step;\n"
+            "            item.enabled = exports.updateActions[step] !== undefined;\n"
+            "        }"
+        ),
+        optional=True,
+        expected_count=1,
+    )
     append_once(
         language_server_path,
         SYSTEM_PROXY_INJECTION,

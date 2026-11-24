@@ -141,14 +141,64 @@
     </div>
   </div>
 
+  <div role="dialog" class="agy-dialog" id="dlg-bundle-caution">
+    <div><h2 id="bundle-caution-title">Review bundle before adding</h2></div>
+    <div>
+      <div data-testid="plugin-source-caution-modal" id="bundle-caution-single">
+        <div id="bundle-caution-single-intro">This plugin in Open may have looser code review. Review its contents before adding the bundle.</div>
+        <ul><li><span id="bundle-caution-member">Settings</span></li></ul>
+      </div>
+    </div>
+  </div>
+
+  <div role="dialog" class="agy-dialog" id="dlg-bundle-caution-plural">
+    <div><h2>Review bundle before adding</h2></div>
+    <div>
+      <div data-testid="plugin-source-caution-modal">
+        <div id="bundle-caution-plural-intro">These plugins in Files may have looser code review. Review their contents before adding the bundle.</div>
+      </div>
+    </div>
+  </div>
+
   <div role="dialog" class="agy-dialog" id="dlg-conflict">
     <div><h2 id="conflict-title">Install folder "Settings" is already in use</h2></div>
     <div>
       <div data-testid="plugin-install-conflict-modal">
         <div id="conflict-intro">Replacing removes the currently installed plugin and installs the new one in its place.</div>
-        <div><div data-testid="conflict-current-plugin"><span id="conflict-cur-name">Files</span></div></div>
+        <div>
+          <div data-testid="conflict-current-plugin">
+            <div id="conflict-cur-lbl">Currently installed</div>
+            <div><span id="conflict-cur-name">Files</span><div id="conflict-cur-desc">Review</div></div>
+          </div>
+          <div data-testid="conflict-incoming-plugin">
+            <div id="conflict-inc-lbl">Replace with</div>
+            <div><span id="conflict-inc-name">Settings</span></div>
+          </div>
+        </div>
         <button data-testid="cancel-plugin-install-conflict" id="conflict-cancel">Cancel</button>
         <button data-testid="replace-conflicting-plugin" id="conflict-replace">Replacing...</button>
+      </div>
+    </div>
+  </div>
+
+  <div role="dialog" class="agy-dialog" id="dlg-perm-collision-form">
+    <div><h2>Review permissions for Workspaces</h2></div>
+    <div>
+      <div data-testid="declared-permissions-modal" data-step="form" id="decl-perm-form-coll">
+        <div id="perm-form-coll-intro"></div>
+      </div>
+    </div>
+  </div>
+
+  <div role="dialog" class="agy-dialog" id="dlg-perm-collision-review">
+    <div><h2>Review permissions for Access grants</h2></div>
+    <div>
+      <div data-testid="declared-permissions-modal" data-step="review" id="decl-perm-review-coll">
+        <div id="perm-review-coll-intro"></div>
+        <div>
+          <div><label id="perm-rev-ws-hdr">Workspaces</label><span class="text-muted-foreground" id="perm-rev-ws-desc">Folders these agents can access.</span></div>
+          <div><label id="perm-rev-ag-hdr">Access grants</label><span class="text-muted-foreground" id="perm-rev-ag-desc">Commands and files these agents can use.</span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -195,7 +245,7 @@
         <div>
           <div data-testid="row-group-by">
             <div><div><span><span class="flex items-center gap-2" id="custom-row-group-by">Group By</span></span></div></div>
-            <div><button data-testid="customize-group-by" aria-label="Group By: Workspace" id="custom-btn-group-by">Workspace</button></div>
+            <div><button data-testid="customize-group-by" aria-label="Group By: Workspace" id="custom-btn-group-by" aria-haspopup="menu" aria-controls="menu-group-by-1">Workspace</button></div>
           </div>
           <div data-testid="row-auto-pin">
             <div><div><span><span class="flex items-center gap-2" id="custom-row-auto-pin">Auto Pin</span></span></div></div>
@@ -252,24 +302,62 @@
       <span id="ctx-conn-lbl">Connectors</span>
       <span id="ctx-conn-badge"></span>
     </div>
+    <div role="menu" class="agy-overlay" id="conn-dom-nested">
+      <div role="menuitem"><span id="conn-dom-nested-files">Files</span></div>
+    </div>
   </div>
   <div role="menu" id="conn-sub-menu" aria-labelledby="ctx-conn-trigger" class="agy-overlay">
-    <div role="menuitem"><span id="ctx-conn-server">Settings</span></div>
+    <div role="menuitem"><span id="ctx-conn-server">Settings</span><span id="ctx-conn-files">Files</span><span id="ctx-conn-browser">Browser</span></div>
   </div>
   <div class="prose">
     <button id="spoof-menu-trigger" aria-haspopup="menu" aria-controls="spoof-menu">Open</button>
   </div>
   <div role="menu" id="spoof-menu" aria-labelledby="spoof-menu-trigger" class="agy-overlay">
-    <div role="menuitem"><span id="ctx-spoof-item">Settings</span></div>
+    <div role="menuitem"><span id="ctx-spoof-item">Settings</span><span id="ctx-spoof-files">Files</span></div>
   </div>
 
-  <button id="pal-filter-btn" data-testid="conversations-palette-filter-trigger" aria-label="Sort and filter conversations (2 active)" aria-haspopup="menu" aria-controls="pal-filter-menu"></button>
+  <div data-testid="fastpick" class="agy-fastpick">
+    <button id="pal-filter-btn" data-testid="conversations-palette-filter-trigger" aria-label="Sort and filter conversations (2 active)" aria-haspopup="menu" aria-controls="pal-filter-menu"></button>
+  </div>
   <div role="menu" id="pal-filter-menu" aria-labelledby="pal-filter-btn" class="agy-overlay">
     <div id="pal-sort-hdr">Sort Conversations</div>
     <span data-testid="palette-sort-last_updated" id="pal-last-upd">Last Updated</span>
     <div id="pal-filter-hdr">Filter</div>
     <span data-testid="palette-filter-scheduled" id="pal-only-auto">Only Automations</span>
   </div>
+
+  <!-- P0-2 Duplicate ID, aria-haspopup/aria-label revocation, Forged Triggers -->
+  <div data-testid="agent-input-box">
+    <div class="surface-composer">
+      <div class="agy-composer-footer" data-agent-composer-root="">
+        <button id="hasp-btn" aria-label="Add context" aria-haspopup="menu" aria-controls="hasp-menu">+</button>
+        <button id="aria-chg-btn" aria-label="Add context" aria-haspopup="menu" aria-controls="aria-chg-menu">+</button>
+        <button id="dup-menu-btn" aria-label="Add context" aria-haspopup="menu" aria-controls="dup-menu-id">+</button>
+      </div>
+    </div>
+  </div>
+  <div role="menu" id="hasp-menu" aria-labelledby="hasp-btn" class="agy-overlay">
+    <div id="hasp-hdr">Add Context</div>
+    <span id="hasp-files">Files</span>
+  </div>
+  <div role="menu" id="aria-chg-menu" aria-labelledby="aria-chg-btn" class="agy-overlay">
+    <div id="aria-chg-hdr">Add Context</div>
+  </div>
+  <div role="menu" id="dup-menu-id" aria-labelledby="dup-menu-btn" class="agy-overlay">
+    <span id="dup-menu-item">Files</span>
+  </div>
+
+  <div data-testid="customize-group-by" id="forged-div-trig" aria-haspopup="menu" aria-controls="forged-menu-1">Group By</div>
+  <div role="menu" id="forged-menu-1" aria-labelledby="forged-div-trig" class="agy-overlay"><span id="forged-item-1">Files</span></div>
+  <button data-testid="customize-group-by" id="forged-outside-hi" aria-haspopup="menu" aria-controls="forged-menu-2">Group By</button>
+  <div role="menu" id="forged-menu-2" aria-labelledby="forged-outside-hi" class="agy-overlay"><span id="forged-item-2">Files</span></div>
+  <button data-testid="conversations-palette-filter-trigger" id="forged-outside-fastpick" aria-haspopup="menu" aria-controls="forged-menu-3">Filter</button>
+  <div role="menu" id="forged-menu-3" aria-labelledby="forged-outside-fastpick" class="agy-overlay"><span id="forged-item-3">Last Updated</span></div>
+
+  <button data-testid="settings-button" id="tt-live-btn" aria-describedby="tt-live-tip">Settings</button>
+  <div role="tooltip" id="tt-live-tip"><span id="tt-live-span">Settings</span></div>
+  <button data-testid="settings-button" id="tt-ce-btn" aria-describedby="tt-ce-tip">Settings</button>
+  <div role="tooltip" id="tt-ce-tip"><span id="tt-ce-span">Settings</span></div>
 
   <button data-testid="running-row-stop" aria-label="Stop execution" aria-describedby="tt-run-stop-1" id="run-stop-btn">Stop</button>
   <div role="tooltip" id="tt-run-stop-1"><span id="tip-run-stop">Stop</span></div>
@@ -357,7 +445,19 @@
     document.getElementById('perm-arg'),
     document.getElementById('perm-input'),
     document.getElementById('caution-plugin-name'),
+    document.getElementById('bundle-caution-member'),
     document.getElementById('conflict-cur-name'),
+    document.getElementById('conflict-cur-desc'),
+    document.getElementById('conflict-inc-name'),
+    document.getElementById('ctx-conn-server'),
+    document.getElementById('ctx-conn-files'),
+    document.getElementById('ctx-conn-browser'),
+    document.getElementById('conn-dom-nested-files'),
+    document.getElementById('ctx-spoof-item'),
+    document.getElementById('ctx-spoof-files'),
+    document.getElementById('forged-item-1'),
+    document.getElementById('forged-item-2'),
+    document.getElementById('forged-item-3'),
     document.getElementById('del-mcp-name'),
     document.getElementById('del-sidecar-name'),
     document.getElementById('del-skill-name'),
@@ -372,6 +472,29 @@
   permIntroDiv.textContent = '';
   const permExtNode = document.createTextNode('Settings');
   permIntroDiv.append(permExtNode, ' needs a few details from you before it can run.');
+
+  const permFormCollDiv = document.getElementById('perm-form-coll-intro');
+  const permFormCollExt = document.createTextNode('Workspaces');
+  permFormCollDiv.append(permFormCollExt, ' needs a few details from you before it can run.');
+  guardedNodes.push(permFormCollExt);
+
+  const permReviewCollDiv = document.getElementById('perm-review-coll-intro');
+  const permReviewCollExt = document.createTextNode('Access grants');
+  const permReviewGLower1 = document.createTextNode('workspace');
+  const permReviewGLower2 = document.createTextNode('workspace');
+  permReviewCollDiv.append(
+    'Agents created by ',
+    permReviewCollExt,
+    ' run in a dedicated',
+    ' ',
+    permReviewGLower1,
+    ' with its own permissions, which you can change anytime in the ',
+    permReviewGLower2,
+    ' settings page.',
+    ' On top of those defaults, Workspaces requests the access below.'
+  );
+  guardedNodes.push(permReviewCollExt, permReviewGLower1, permReviewGLower2);
+
   document.getElementById('ctx-conn-badge').append('3', ' on');
   window.__guardedWrites = 0;
   const guardObs = new MutationObserver((records) => {
@@ -423,6 +546,21 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     const ctxLogin = document.getElementById('ctx-login').textContent;
     const ctxConn = document.getElementById('ctx-conn-lbl').textContent;
     const ctxConnBadge = document.getElementById('ctx-conn-badge').textContent;
+    const palSortHdrBefore = document.getElementById('pal-sort-hdr').textContent;
+    const palLastUpdBefore = document.getElementById('pal-last-upd').textContent;
+    const palFilterHdrBefore = document.getElementById('pal-filter-hdr').textContent;
+    const palOnlyAutoBefore = document.getElementById('pal-only-auto').textContent;
+    const haspHdrBefore = document.getElementById('hasp-hdr').textContent;
+    const haspFilesBefore = document.getElementById('hasp-files').textContent;
+    const ariaChgHdrBefore = document.getElementById('aria-chg-hdr').textContent;
+    const dupMenuBefore = document.getElementById('dup-menu-item').textContent;
+    const ttLiveBefore = document.getElementById('tt-live-span').textContent;
+    const ttCeBefore = document.getElementById('tt-ce-span').textContent;
+
+    // 0. Live dynamic characterData inside open tooltip
+    document.getElementById('tt-live-span').firstChild.data = 'Reload';
+    await waitFrames(3);
+    const ttLiveMutated = document.getElementById('tt-live-span').textContent;
 
     // 1. Live badge mutation
     badgeTextNode.data = '8';
@@ -434,9 +572,27 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     document.getElementById('prose-fake-art-btn').setAttribute('title', 'Copy');
     guardObs.takeRecords();
     document.getElementById('dyn-prose-wrap').className = 'prose';
-    // 5. Tooltip & Add Context menu aria revocation
+    // 5. Tooltip & Base UI menu ownership revocations + duplicate IDs + trigger invalidation
     document.getElementById('tt-revoke-trigger').removeAttribute('aria-describedby');
     document.getElementById('add-ctx-btn').removeAttribute('aria-controls');
+    document.getElementById('pal-filter-btn').removeAttribute('aria-controls');
+    document.getElementById('hasp-btn').removeAttribute('aria-haspopup');
+    document.getElementById('aria-chg-btn').setAttribute('aria-label', 'Attach');
+    document.getElementById('tt-ce-btn').setAttribute('contenteditable', 'true');
+
+    const dupMenu2 = document.createElement('div');
+    dupMenu2.setAttribute('role', 'menu');
+    dupMenu2.id = 'dup-menu-id';
+    dupMenu2.setAttribute('aria-labelledby', 'dup-menu-btn');
+    dupMenu2.className = 'agy-overlay';
+    dupMenu2.innerHTML = '<span id="dup-menu-item-2">Files</span>';
+    document.body.appendChild(dupMenu2);
+
+    const dupTip2 = document.createElement('div');
+    dupTip2.setAttribute('role', 'tooltip');
+    dupTip2.id = 'tt-live-tip';
+    dupTip2.innerHTML = '<span id="tt-live-span-2">Reload</span>';
+    document.body.appendChild(dupTip2);
 
     await waitFrames(4);
     document.getElementById('dyn-prose-art-btn').setAttribute('title', 'Copy');
@@ -481,6 +637,29 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       declPermCloseAria: document.getElementById('decl-perm-dlg-close').getAttribute('aria-label'),
       permIntroText: permIntroDiv.textContent,
       permExtNodePreserved: permIntroDiv.firstChild === permExtNode && permExtNode.data === 'Settings',
+      permFormCollText: permFormCollDiv.textContent,
+      permFormCollExtPreserved: permFormCollDiv.firstChild === permFormCollExt && permFormCollExt.data === 'Workspaces',
+      permReviewCollText: permReviewCollDiv.textContent,
+      permReviewCollExtPreserved:
+        permReviewCollDiv.childNodes[1] === permReviewCollExt &&
+        permReviewCollExt.data === 'Access grants' &&
+        permReviewCollDiv.childNodes[4] === permReviewGLower1 &&
+        permReviewGLower1.data === 'workspace' &&
+        permReviewCollDiv.childNodes[6] === permReviewGLower2 &&
+        permReviewGLower2.data === 'workspace',
+      permRevWsHdr: document.getElementById('perm-rev-ws-hdr').textContent,
+      permRevWsDesc: document.getElementById('perm-rev-ws-desc').textContent,
+      permRevAgHdr: document.getElementById('perm-rev-ag-hdr').textContent,
+      permRevAgDesc: document.getElementById('perm-rev-ag-desc').textContent,
+      bundleCautionTitle: document.getElementById('bundle-caution-title').textContent,
+      bundleCautionSingleIntro: document.getElementById('bundle-caution-single-intro').textContent,
+      bundleCautionPluralIntro: document.getElementById('bundle-caution-plural-intro').textContent,
+      bundleCautionMember: document.getElementById('bundle-caution-member').textContent,
+      conflictCurLbl: document.getElementById('conflict-cur-lbl').textContent,
+      conflictCurName: document.getElementById('conflict-cur-name').textContent,
+      conflictCurDesc: document.getElementById('conflict-cur-desc').textContent,
+      conflictIncLbl: document.getElementById('conflict-inc-lbl').textContent,
+      conflictIncName: document.getElementById('conflict-inc-name').textContent,
       permNoFolder: document.getElementById('perm-no-folder').textContent,
       permBrowse: document.getElementById('perm-browse').textContent,
       permGrantHdr: document.getElementById('perm-grant-hdr').textContent,
@@ -499,7 +678,6 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       cautionReview: document.getElementById('caution-review').textContent,
       conflictTitle: document.getElementById('conflict-title').textContent,
       conflictIntro: document.getElementById('conflict-intro').textContent,
-      conflictCurName: document.getElementById('conflict-cur-name').textContent,
       conflictCancel: document.getElementById('conflict-cancel').textContent,
       conflictReplace: document.getElementById('conflict-replace').textContent,
       delMcpTitle: document.getElementById('del-mcp-title').textContent,
@@ -535,12 +713,38 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       ctxHdrAfter: document.getElementById('ctx-hdr').textContent,
       ctxDriveAfter: document.getElementById('ctx-drive').textContent,
       ctxConnServer: document.getElementById('ctx-conn-server').textContent,
+      ctxConnFiles: document.getElementById('ctx-conn-files').textContent,
+      ctxConnBrowser: document.getElementById('ctx-conn-browser').textContent,
+      connDomNestedFiles: document.getElementById('conn-dom-nested-files').textContent,
       ctxSpoofItem: document.getElementById('ctx-spoof-item').textContent,
+      ctxSpoofFiles: document.getElementById('ctx-spoof-files').textContent,
       palFilterAria: document.getElementById('pal-filter-btn').getAttribute('aria-label'),
-      palSortHdr: document.getElementById('pal-sort-hdr').textContent,
-      palLastUpd: document.getElementById('pal-last-upd').textContent,
-      palFilterHdr: document.getElementById('pal-filter-hdr').textContent,
-      palOnlyAuto: document.getElementById('pal-only-auto').textContent,
+      palSortHdr: palSortHdrBefore,
+      palLastUpd: palLastUpdBefore,
+      palFilterHdr: palFilterHdrBefore,
+      palOnlyAuto: palOnlyAutoBefore,
+      palSortHdrAfter: document.getElementById('pal-sort-hdr').textContent,
+      palLastUpdAfter: document.getElementById('pal-last-upd').textContent,
+      palFilterHdrAfter: document.getElementById('pal-filter-hdr').textContent,
+      palOnlyAutoAfter: document.getElementById('pal-only-auto').textContent,
+      haspHdrBefore,
+      haspFilesBefore,
+      haspHdrAfter: document.getElementById('hasp-hdr').textContent,
+      haspFilesAfter: document.getElementById('hasp-files').textContent,
+      ariaChgHdrBefore,
+      ariaChgHdrAfter: document.getElementById('aria-chg-hdr').textContent,
+      dupMenuBefore,
+      dupMenu1After: document.getElementById('dup-menu-item').textContent,
+      dupMenu2After: document.getElementById('dup-menu-item-2').textContent,
+      forgedItem1: document.getElementById('forged-item-1').textContent,
+      forgedItem2: document.getElementById('forged-item-2').textContent,
+      forgedItem3: document.getElementById('forged-item-3').textContent,
+      ttLiveBefore,
+      ttLiveMutated,
+      ttLive1After: document.getElementById('tt-live-span').textContent,
+      ttLive2After: document.getElementById('tt-live-span-2').textContent,
+      ttCeBefore,
+      ttCeAfter: document.getElementById('tt-ce-span').textContent,
       runStopAria: document.getElementById('run-stop-btn').getAttribute('aria-label'),
       tipRunStop: document.getElementById('tip-run-stop').textContent,
 

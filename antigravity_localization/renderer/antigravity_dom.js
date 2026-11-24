@@ -74,13 +74,11 @@ const dom = (() => {
     'conversation-archive-button', 'conversation-archive-menu-item', 'conversation-delete-menu-item',
     'filter-sort-button', 'filter-submenu-trigger', 'group-by-submenu-trigger',
     'display-submenu-trigger', 'conversations-palette-filter-trigger',
-    'palette-filter-archived', 'palette-filter-scheduled', 'palette-filter-unread',
-    'palette-sort-last_updated', 'palette-sort-last_user_prompt',
     'project-selector-search', 'project-selector-create-project-trigger',
     'project-selector-new-workspace', 'project-selector-connect-github',
     'project-selector-connect-ssh-host', 'project-selector-configure-github-app',
     // Toolbar overflow, composer triggers, modals, sidecar & verified static action buttons
-    'toolbar-overflow-trigger', 'overflow-menu', 'composer-connectors-submenu',
+    'toolbar-overflow-trigger', 'overflow-menu',
     'model-selector-refresh', 'send-button-loading',
     'automation-settings-save', 'automation-settings-cancel', 'schedule-editor-save',
     'coordinator-settings-save', 'setup-script-save-button',
@@ -104,6 +102,14 @@ const dom = (() => {
     'side-question-insert-to-main', 'side-question-popout',
     'selection-quote-button', 'selection-popup-quote-button',
     'selection-btw-button', 'selection-comment-button',
+  ]);
+  const MENU_SCOPED_TESTIDS = new Set([
+    'palette-filter-archived', 'palette-filter-scheduled', 'palette-filter-unread',
+    'palette-sort-last_updated', 'palette-sort-last_user_prompt',
+    'composer-connectors-submenu',
+  ]);
+  const SELF_OWNED_MENU_TESTIDS = new Set([
+    'permissions-menu', 'marketplace-filter-menu', 'overflow-menu',
   ]);
   const FIXED_MENU_TRIGGER_TESTIDS = new Set([
     'conversations-palette-filter-trigger',
@@ -168,7 +174,7 @@ const dom = (() => {
   const placeholderSlot = slot(shellAttr, true);
   const strictDictionaryOptions = { allowRelTime: false, allowBareRelTime: false, allowCoreWords: false, allowExtraLabels: false };
   const strictDictionarySlot = slot((text) => formats.shell(text, strictDictionaryOptions));
-  const tooltipSlot = slot((text) => formats.shell(text, strictDictionaryOptions), false, true, false);
+  const tooltipSlot = slot((text) => formats.shell(text, strictDictionaryOptions), true, true, false);
   const menuSlot = slot((text) => formats.shell(text, strictDictionaryOptions), false, false, true);
   const connectorsOnMenuSlot = slot(
     (text) => (text === ' on' ? ' 个已开启' : formats.shell(text, strictDictionaryOptions)),
@@ -176,7 +182,10 @@ const dom = (() => {
     false,
     true
   );
-  const connectorsOnSlot = slot((text) => (text === ' on' ? ' 个已开启' : formats.shell(text, shellOptions)));
+  const permIntroSlot = slot(formats.permIntro);
+  const permDetailSlot = slot(formats.permDetail);
+  const deleteSkillBodySlot = slot(formats.deleteSkillBody);
+  const conflictCardLabelSlot = slot(formats.conflictCardLabel);
   const modalTitleSlot = slot(formats.modalTitle);
   const modalBodySlot = slot(formats.modalBody);
   const modalActionSlot = slot((text) => {
@@ -215,6 +224,19 @@ const dom = (() => {
 
   function bumpTooltipRev() {
     tooltipRev++;
+  }
+
+  function invalidatePortal(el) {
+    if (el) {
+      tooltipCache.delete(el);
+      menuCache.delete(el);
+    } else {
+      tooltipRev++;
+    }
+  }
+
+  function getPortalOwner(el) {
+    return menuCache.get(el)?.trigger || tooltipCache.get(el)?.trigger || null;
   }
 
   function setPortalBlocker(fn) {
@@ -332,6 +354,8 @@ const dom = (() => {
       permissionCard: null,
       dialogEl: null,
       hiModal: null,
+      fastpickEl: null,
+      conflictCard: null,
     };
 
     let prev = null;
@@ -424,10 +448,17 @@ const dom = (() => {
         !info.menuEl &&
         role === 'menu' &&
         cl.contains('agy-overlay') &&
-        cur.hasAttribute('id') &&
-        cur.hasAttribute('aria-labelledby')
+        (!tid || !SELF_OWNED_MENU_TESTIDS.has(tid))
       ) {
         info.menuEl = cur;
+      }
+
+      if (!info.fastpickEl && tid === 'fastpick' && cl.contains('agy-fastpick')) {
+        info.fastpickEl = cur;
+      }
+
+      if (!info.conflictCard && (tid === 'conflict-current-plugin' || tid === 'conflict-incoming-plugin')) {
+        info.conflictCard = cur;
       }
 
       if (!info.toolbarEl && (tid === 'pane-titlebar-toolbar' || tid === 'sidebar-navigation-items')) {
@@ -685,6 +716,7 @@ const dom = (() => {
   }
 
   function isTriggerAuthorized(trigger) {
+    if (!trigger || editable(trigger)) return false;
     const tInfo = inspectAncestors(trigger);
     if (tInfo.hardProtected || tInfo.artifactView) return false;
     if (portalBlocker && portalBlocker(trigger)) return false;
@@ -705,59 +737,85 @@ const dom = (() => {
 
   function verifiedTooltipSlot(element, info) {
     const tip = info.tooltipEl;
-    if (!tip || info.inShortcutNode) return null;
+    if (!tip || info.inShortcutNode || !tip.isConnected) return null;
     const tipId = tip.getAttribute('id');
     if (!tipId || /\s/.test(tipId)) return null;
 
     const cached = tooltipCache.get(tip);
-    if (cached && cached.rev === tooltipRev) {
+    if (cached && cached.rev === tooltipRev && cached.tipId === tipId) {
       return cached.allowed ? tooltipSlot : null;
     }
 
     const doc = element.ownerDocument;
     if (!doc?.querySelectorAll) return null;
+    const sameId = doc.querySelectorAll(`[id="${escapeAttrSelector(tipId)}"]`);
+    if (sameId.length !== 1 || sameId[0] !== tip) {
+      tooltipCache.set(tip, { rev: tooltipRev, allowed: false, trigger: null, tipId });
+      return null;
+    }
     const triggers = doc.querySelectorAll(`[aria-describedby~="${escapeAttrSelector(tipId)}"]`);
-    const allowed = triggers.length === 1 && isTriggerAuthorized(triggers[0]);
-    tooltipCache.set(tip, { rev: tooltipRev, allowed });
+    const trigger = triggers.length === 1 ? triggers[0] : null;
+    const allowed = Boolean(trigger && trigger.isConnected && isTriggerAuthorized(trigger));
+    tooltipCache.set(tip, { rev: tooltipRev, allowed, trigger: allowed ? trigger : null, tipId });
     return allowed ? tooltipSlot : null;
   }
 
   function isMenuTriggerAuthorized(trigger) {
+    if (!trigger || trigger.tagName !== 'BUTTON') return false;
+    if (trigger.getAttribute('aria-haspopup') !== 'menu') return false;
+    if (editable(trigger)) return false;
     const tInfo = inspectAncestors(trigger);
     if (tInfo.hardProtected || tInfo.artifactView) return false;
     if (portalBlocker && portalBlocker(trigger)) return false;
     if (composerControl(trigger, tInfo)) {
       const lbl = trigger.getAttribute('aria-label');
-      return (
-        trigger.getAttribute('aria-haspopup') === 'menu' &&
-        (lbl === 'Add context' || lbl === '添加上下文')
-      );
+      return lbl === 'Add context' || lbl === '添加上下文';
     }
     if (tInfo.inChat || tInfo.inArtifactSidebar) return false;
     const tid = testId(trigger);
-    return Boolean(tid && FIXED_MENU_TRIGGER_TESTIDS.has(tid));
+    if (!tid || !FIXED_MENU_TRIGGER_TESTIDS.has(tid)) return false;
+    if (tid === 'conversations-palette-filter-trigger') {
+      return Boolean(tInfo.fastpickEl);
+    }
+    if (tid === 'customize-group-by' || tid === 'customize-idle-limit') {
+      return Boolean(
+        tInfo.hiModal &&
+        testId(tInfo.hiModal) === 'customize-sidebar-modal' &&
+        tInfo.dialogEl &&
+        hiDialogModalTestId(tInfo.dialogEl) === 'customize-sidebar-modal'
+      );
+    }
+    return false;
   }
 
   function verifiedMenuSlot(element, info) {
     const menu = info.menuEl;
-    if (!menu || info.inShortcutNode) return null;
+    if (!menu || info.inShortcutNode || !menu.isConnected) return null;
     const menuId = menu.getAttribute('id');
     const labelledBy = menu.getAttribute('aria-labelledby');
     if (!menuId || !labelledBy || /\s/.test(menuId) || /\s/.test(labelledBy)) return null;
 
-    let allowed;
+    let allowed = false;
     const cached = menuCache.get(menu);
-    if (cached && cached.rev === tooltipRev) {
+    if (cached && cached.rev === tooltipRev && cached.menuId === menuId && cached.labelledBy === labelledBy) {
       allowed = cached.allowed;
     } else {
       const doc = element.ownerDocument;
-      const trigger = doc?.getElementById?.(labelledBy);
-      const controls = trigger?.getAttribute?.('aria-controls');
-      const controlsMatches = Boolean(
-        controls && (controls === menuId || controls.split(/\s+/).includes(menuId))
-      );
-      allowed = Boolean(trigger && controlsMatches && isMenuTriggerAuthorized(trigger));
-      menuCache.set(menu, { rev: tooltipRev, allowed });
+      if (doc?.querySelectorAll) {
+        const sameId = doc.querySelectorAll(`[id="${escapeAttrSelector(menuId)}"]`);
+        const triggers = doc.querySelectorAll(`[id="${escapeAttrSelector(labelledBy)}"]`);
+        const controllers = doc.querySelectorAll(`[aria-controls~="${escapeAttrSelector(menuId)}"]`);
+        const trigger =
+          sameId.length === 1 &&
+          sameId[0] === menu &&
+          triggers.length === 1 &&
+          controllers.length === 1 &&
+          triggers[0] === controllers[0]
+            ? triggers[0]
+            : null;
+        allowed = Boolean(trigger && trigger.isConnected && isMenuTriggerAuthorized(trigger));
+        menuCache.set(menu, { rev: tooltipRev, allowed, trigger: allowed ? trigger : null, menuId, labelledBy });
+      }
     }
     if (!allowed) return null;
     if (
@@ -774,7 +832,7 @@ const dom = (() => {
     return modalTid && HI_MODAL_TESTIDS.has(modalTid) ? modalTid : null;
   }
 
-  function hiModalSlot(element, info) {
+  function hiModalSlot(element, info, textNode = null) {
     const dialog = info.dialogEl;
     if (dialog && !info.hiModal && hiDialogModalTestId(dialog)) {
       if (element.tagName === 'H2' && element.parentElement === dialog.firstElementChild) {
@@ -790,24 +848,56 @@ const dom = (() => {
     if (
       modalTid === 'delete-mcp-modal' ||
       modalTid === 'delete-sidecar-modal' ||
-      modalTid === 'delete-skill-modal' ||
-      modalTid === 'plugin-source-caution-modal' ||
-      modalTid === 'plugin-install-conflict-modal'
+      modalTid === 'plugin-source-caution-modal'
     ) {
       return element === modal.firstElementChild ? modalBodySlot : null;
     }
 
-    if (modalTid === 'declared-permissions-modal') {
+    if (modalTid === 'delete-skill-modal') {
+      return element === modal.firstElementChild ? deleteSkillBodySlot : null;
+    }
+
+    if (modalTid === 'plugin-install-conflict-modal') {
       if (element === modal.firstElementChild) return modalBodySlot;
+      if (info.conflictCard && element === info.conflictCard.firstElementChild) return conflictCardLabelSlot;
+      return null;
+    }
+
+    if (modalTid === 'declared-permissions-modal') {
+      if (element === modal.firstElementChild) {
+        if (!textNode) return permIntroSlot;
+        if (textNode.parentElement !== element) return null;
+        const nodes = element.childNodes;
+        const isForm =
+          modal.getAttribute('data-step') === 'form' ||
+          (!modal.hasAttribute('data-step') && nodes.length <= 2);
+        if (isForm) {
+          return textNode === nodes[1] ? permIntroSlot : null;
+        }
+        if (textNode === nodes[1] || textNode === nodes[4] || textNode === nodes[6]) {
+          return null;
+        }
+        if (
+          textNode === nodes[0] ||
+          textNode === nodes[2] ||
+          textNode === nodes[3] ||
+          textNode === nodes[5] ||
+          textNode === nodes[7] ||
+          textNode === nodes[8]
+        ) {
+          return permIntroSlot;
+        }
+        return null;
+      }
       if (element.parentElement === modal && element.tagName === 'DIV' && element !== modal.lastElementChild) {
-        return modalBodySlot;
+        return permDetailSlot;
       }
       if (
         element.parentElement?.parentElement === modal &&
         element.classList.contains('select-none') &&
         element.classList.contains('text-muted-foreground')
       ) {
-        return modalBodySlot;
+        return permDetailSlot;
       }
       if (
         element.parentElement?.parentElement?.parentElement === modal &&
@@ -815,17 +905,17 @@ const dom = (() => {
         !element.classList.contains('font-mono') &&
         !element.closest('[data-testid="declared-permissions-arg"]')
       ) {
-        return modalBodySlot;
+        return permDetailSlot;
       }
       if (
         element.tagName === 'SPAN' &&
         element.classList.contains('italic') &&
         element.closest('[data-testid="declared-permissions-arg"]')
       ) {
-        return modalBodySlot;
+        return permDetailSlot;
       }
       if (element.parentElement === modal.lastElementChild && element.tagName === 'SPAN') {
-        return modalBodySlot;
+        return permDetailSlot;
       }
       const btn = element.closest('button');
       if (btn && modal.lastElementChild?.contains(btn) && !testId(btn)) {
@@ -861,7 +951,7 @@ const dom = (() => {
     return null;
   }
 
-  function textSlot(element) {
+  function textSlot(element, textNode = null) {
     const info = inspectAncestors(element);
     if (info.hardProtected) return null;
     if (artifactHeaderButton(element, info)) return artifactSlot;
@@ -888,23 +978,15 @@ const dom = (() => {
 
     const overview = overviewSlot(element, info);
     if (overview) return overview;
-    const menu = verifiedMenuSlot(element, info);
-    if (menu) return menu;
-    const tooltip = verifiedTooltipSlot(element, info);
-    if (tooltip) return tooltip;
+    if (info.menuEl) return verifiedMenuSlot(element, info);
+    if (info.tooltipEl) return verifiedTooltipSlot(element, info);
 
     if (info.artifactHeader || info.inArtifactSidebar) return null;
-    const hiModal = hiModalSlot(element, info);
+    const hiModal = hiModalSlot(element, info, textNode);
     if (hiModal) return hiModal;
     const confirmation = confirmSlot(element, info);
     if (confirmation) return confirmation;
     if (!shellOwner(element, info)) return null;
-    if (
-      testId(element) === 'composer-connectors-submenu' ||
-      testId(element.parentElement) === 'composer-connectors-submenu'
-    ) {
-      return connectorsOnSlot;
-    }
     return element.matches('[data-screenshot-volatile]') ? timeSlot : shellSlot;
   }
 
@@ -913,6 +995,7 @@ const dom = (() => {
     if (info.hardProtected) return null;
     if (artifactHeaderButton(element, info) && name !== 'placeholder') return formats.artifactAction;
     if (info.artifactView) return null;
+    if (info.menuEl || info.tooltipEl) return null;
 
     if (name === 'placeholder') {
       if (!element.matches(input)) return null;
@@ -940,6 +1023,8 @@ const dom = (() => {
     shellOwner,
     overviewSlot,
     bumpTooltipRev,
+    invalidatePortal,
+    getPortalOwner,
     setPortalBlocker,
     statusButton,
     statusCandidate,

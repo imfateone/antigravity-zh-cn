@@ -183,6 +183,51 @@ function Overview({ status, count }) {
         self.assertIn("版本间差异对比", md)
         self.assertIn("drifted", md)
 
+    def test_audit_native_anchors_expected_counts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app_dir = Path(tmp)
+            dist = app_dir / "resources" / "app" / "dist"
+            dist.mkdir(parents=True)
+            (dist / "menu.js").write_text(
+                "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);\n"
+                "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);\n"
+                "const viewMenuItem = appMenu.items?.find((item) => item.label === 'View');\n",
+                encoding="utf-8",
+            )
+            (dist / "tray.js").write_text("empty", encoding="utf-8")
+
+            results = {r["anchor"]: r for r in audit_localization.audit_native_anchors(app_dir)}
+            sub_anchor = "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);"
+            view_anchor = "const viewMenuItem = appMenu.items?.find((item) => item.label === 'View');"
+            act_anchor = "const action = updater_1.updateActions[menuItem.label];"
+            upd_anchor = "        if (item) {\n            item.label = step;\n            item.enabled = exports.updateActions[step] !== undefined;\n        }"
+            self.assertEqual(results[sub_anchor]["status"], "unexpected_count")
+            self.assertEqual(results[sub_anchor]["occurrences"], 2)
+            self.assertEqual(results[view_anchor]["status"], "ok")
+            self.assertEqual(results[act_anchor]["status"], "drifted")
+            self.assertEqual(results[upd_anchor]["status"], "missing_file")
+
+    def test_parse_dom_routing_and_detail_template_resolution(self):
+        routing = audit_localization.parse_dom_routing(RENDERER_DIR / "antigravity_dom.js")
+        self.assertNotIn("palette-sort-last_updated", routing["shell_testids"])
+        self.assertNotIn("composer-connectors-submenu", routing["shell_testids"])
+        self.assertIn("palette-sort-last_updated", routing["all_referenced_testids"])
+        self.assertIn("composer-connectors-submenu", routing["all_referenced_testids"])
+        self.assertIn("permissions-menu", routing["all_referenced_testids"])
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "main.js"
+            bundle.write_text(
+                'E.createElement("div",{"data-testid":`${a}-detail`});'
+                'E.createElement("button",{"data-testid":"overview-panel-row-review"},"Review");',
+                encoding="utf-8",
+            )
+            audit = audit_localization.run_audit(bundle_path=bundle, app_dir=tmp)
+            self.assertNotIn("overview-panel-row-review-detail", audit["testid_stats"]["stale_routed_testids"])
+
 
 if __name__ == "__main__":
     unittest.main()
