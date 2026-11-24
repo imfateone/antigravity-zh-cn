@@ -29,6 +29,8 @@ const dom = (() => {
     '[data-testid="settings-sidebar"]', '[data-testid="settings-app-version-card"]',
     '[data-testid="settings-button"]', '[data-testid="app-update-button"]',
     '[data-testid="overview-panel-host-header"]',
+    '[data-testid="title-menu-bar"]', '[data-testid="voice-picker"]',
+    '[data-testid="orchestrator-picker-effort"]', '[data-select-popup].agy-overlay',
     '[data-testid="plugins-tabs"]', '[data-testid="plugins-section-header"]',
     '[data-testid="plugin-detail"]', '[data-testid="marketplace-filter-menu"]',
     '[data-testid="permissions-menu"]', '[data-testid="model-selector-panel"]',
@@ -51,6 +53,7 @@ const dom = (() => {
   const permissionButtonSlot = slot(formats.permissionButton, true);
   const artifactSlot = slot(formats.artifactAction);
   const composerSlot = slot(formats.composer, true);
+  const homeGreetingSlot = slot(formats.homeGreeting);
   const shellOptions = { allowRelTime: true, allowBareRelTime: false, allowCoreWords: true, allowExtraLabels: true };
   const shellSlot = slot((text) => formats.shell(text, shellOptions));
   const shellAttrOptions = { allowRelTime: false, allowBareRelTime: false, allowCoreWords: true, allowExtraLabels: false };
@@ -165,6 +168,16 @@ const dom = (() => {
       element.previousElementSibling?.hasAttribute('data-lexical-editor') && inComposer(element);
   }
 
+  function homeGreeting(element) {
+    const greeting = element.closest('[data-testid="home-greeting"]');
+    return Boolean(
+      greeting &&
+      element.matches('h1.home-greeting-title') &&
+      element.parentElement === greeting &&
+      !greeting.closest(viewport + ', ' + turnRoot + ', .chat-messages, .chat-scroll-pane, [role="log"]')
+    );
+  }
+
   function confirmSlot(element) {
     const dialog = element.closest('[role="dialog"].agy-dialog');
     const heading = dialog?.firstElementChild?.firstElementChild;
@@ -224,6 +237,7 @@ const dom = (() => {
     if (permission) return permission;
     if (composerPlaceholder(element)) return placeholderSlot;
     if (composerControl(element)) return composerSlot;
+    if (homeGreeting(element)) return homeGreetingSlot;
     if (inChat(element)) return null;
     if (element.closest('[data-testid="artifact-editor-header"]')) return element.closest('button') ? artifactSlot : null;
     if (element.closest('.artifact-sidebar')) return null;

@@ -33,3 +33,36 @@ assert.equal(formats.status('Editing config.py'), '正在编辑 config.py');
 assert.equal(formats.status('Explored 2 files'), '已浏览 2 个文件');
 assert.equal(formats.fileSummary('2 files changed +99 -23 >'), '2 个文件已修改 +99 -23 >');
 assert.equal(formats.time('2m'), '2分钟前');
+
+// Home greeting templates (named, unnamed, special characters like $&, and non-greeting guards)
+assert.equal(formats.homeGreeting('Hey there, what should we build today?'), '你好，今天我们要构建什么？');
+assert.equal(formats.homeGreeting('Welcome back. Where should we pick up?'), '欢迎回来，我们从哪里继续？');
+assert.equal(formats.homeGreeting("Good to see you. What's next?"), '很高兴见到你，接下来做什么？');
+assert.equal(formats.homeGreeting('Hey Orabone, what should we build today?'), '你好，Orabone。今天我们要构建什么？');
+assert.equal(formats.homeGreeting('Welcome back, Orabone. Where should we pick up?'), '欢迎回来，Orabone。我们从哪里继续？');
+assert.equal(formats.homeGreeting("Welcome back, foo$&bar. Where should we pick up?"), '欢迎回来，foo$&bar。我们从哪里继续？');
+assert.equal(formats.homeGreeting("Good to see you, Orabone. What's next?"), '很高兴见到你，Orabone。接下来做什么？');
+assert.equal(formats.homeGreeting('Welcome back, Orabone.'), 'Welcome back, Orabone.');
+assert.equal(formats.homeGreeting('Settings'), 'Settings');
+
+// Plan & v2.34 settings / shortcuts / voice / browser / account labels
+assert.equal(formats.shell('Your Plan: Google AI Ultra'), '当前计划：Google AI Ultra');
+assert.equal(formats.shell('Your Plan: Google AI Pro'), '当前计划：Google AI Pro');
+assert.equal(formats.shell('By using this app, you agree to its'), '使用本应用即表示您同意其');
+assert.equal(formats.shell('  By using this app, you agree to its '), '  使用本应用即表示您同意其 ');
+assert.equal(formats.shell('Knowledge Work'), '知识工作');
+assert.equal(formats.shell('Software Engineering'), '软件工程');
+assert.equal(formats.shell('Voice mode'), '语音模式');
+assert.equal(formats.shell('Not set'), '未设置');
+assert.equal(formats.shell('System default'), '系统默认');
+assert.equal(formats.shell('Change…'), '更改…');
+assert.equal(formats.shell('Extra High'), '超高');
+assert.equal(formats.shell('Orchestrator Settings'), '编排器设置');
+assert.equal(formats.shell('Browsing History'), '浏览历史');
+assert.equal(formats.shell('Go Back'), '后退');
+assert.equal(formats.shell('Terminal: Select All'), '终端：全选');
+assert.equal(formats.shell('Show All'), '显示全部');
+assert.equal(formats.shell('This computer'), '本机（本地对话）');
+assert.equal(formats.shell('Queued messages'), '排队消息');
+assert.equal(formats.shell('Search shortcuts...'), '搜索快捷键...');
+assert.equal(formats.shell('Remote Agents Data'), '远程智能体数据');

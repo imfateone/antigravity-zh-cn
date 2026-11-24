@@ -350,12 +350,155 @@ def stop_antigravity_desktop_processes(app_dir=None, wait_timeout=8.0):
             time.sleep(0.3)
 
 
+def split_windows_cmdline(cmdline: str) -> list[str]:
+    """Split a Windows command-line argument string using CommandLineToArgvW quoting rules."""
+    s = str(cmdline or "")
+    n = len(s)
+    i = 0
+    args: list[str] = []
+    while i < n:
+        while i < n and s[i] in (" ", "\t", "\r", "\n"):
+            i += 1
+        if i >= n:
+            break
+        buf: list[str] = []
+        in_quotes = False
+        while i < n:
+            ch = s[i]
+            if not in_quotes and ch in (" ", "\t", "\r", "\n"):
+                break
+            if ch == "\\":
+                bs_count = 0
+                while i < n and s[i] == "\\":
+                    bs_count += 1
+                    i += 1
+                if i < n and s[i] == '"':
+                    buf.append("\\" * (bs_count // 2))
+                    if bs_count % 2 == 1:
+                        buf.append('"')
+                        i += 1
+                    else:
+                        if in_quotes and i + 1 < n and s[i + 1] == '"':
+                            buf.append('"')
+                            i += 2
+                        else:
+                            in_quotes = not in_quotes
+                            i += 1
+                else:
+                    buf.append("\\" * bs_count)
+            elif ch == '"':
+                if in_quotes and i + 1 < n and s[i + 1] == '"':
+                    buf.append('"')
+                    i += 2
+                else:
+                    in_quotes = not in_quotes
+                    i += 1
+            else:
+                buf.append(ch)
+                i += 1
+        args.append("".join(buf))
+    return args
+
+
+def read_windows_shortcut(lnk_path: str) -> dict | None:
+    """Read TargetPath, Arguments, WorkingDirectory, IconLocation, Description from a .lnk file."""
+    if sys.platform != "win32" or not lnk_path or not os.path.isfile(lnk_path):
+        return None
+    lnk_ps = lnk_path.replace("'", "''")
+    ps_cmd = (
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+        "$wsh = New-Object -ComObject WScript.Shell; "
+        f"$s = $wsh.CreateShortcut('{lnk_ps}'); "
+        "[PSCustomObject]@{"
+        "TargetPath=[string]$s.TargetPath;"
+        "Arguments=[string]$s.Arguments;"
+        "WorkingDirectory=[string]$s.WorkingDirectory;"
+        "IconLocation=[string]$s.IconLocation;"
+        "Description=[string]$s.Description"
+        "} | ConvertTo-Json -Compress"
+    )
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            creationflags=_CREATION_FLAGS,
+            timeout=10,
+        )
+        raw = (res.stdout or "").strip()
+        if res.returncode != 0 or not raw:
+            return None
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def is_custom_wrapper_shortcut(target_path: str, arguments: str, exe_path: str) -> bool:
+    """Return True when a shortcut targets an existing non-Antigravity launcher/wrapper."""
+    target = str(target_path or "").strip()
+    if not target:
+        return False
+    if os.path.basename(target).lower() == "antigravity.exe":
+        return False
+    return os.path.isfile(target)
+
+
+def _ensure_debug_port_arg(args_list: list[str]) -> list[str]:
+    out = list(args_list)
+    if not any("--remote-debugging-port" in a.lower() for a in out):
+        out.append("--remote-debugging-port=0")
+    return out
+
+
+def resolve_windows_launch_spec(
+    app_dir: str,
+    lnk_path: str | None = None,
+    shortcut_reader=None,
+) -> tuple[list[str], str]:
+    """Resolve Windows relaunch command and working directory, honoring proxy/wrapper shortcuts."""
+    exe_path = os.path.join(app_dir, "Antigravity.exe")
+    default_cwd = os.path.dirname(exe_path)
+    default_spec = ([exe_path, "--remote-debugging-port=0"], default_cwd)
+
+    target_lnk = lnk_path if lnk_path is not None else os.path.join(get_desktop_dir(), "Antigravity.lnk")
+    reader = shortcut_reader or read_windows_shortcut
+    info = reader(target_lnk) if target_lnk else None
+    if not isinstance(info, dict):
+        return default_spec
+
+    target = str(info.get("TargetPath") or "").strip()
+    raw_args = str(info.get("Arguments") or "").strip()
+    workdir = str(info.get("WorkingDirectory") or "").strip()
+
+    if is_custom_wrapper_shortcut(target, raw_args, exe_path):
+        parsed_args = split_windows_cmdline(raw_args)
+        if "antigravity.exe" in raw_args.lower():
+            parsed_args = _ensure_debug_port_arg(parsed_args)
+        launch_cwd = workdir if (workdir and os.path.isdir(workdir)) else os.path.dirname(target)
+        return ([target, *parsed_args], launch_cwd)
+
+    if target and os.path.basename(target).lower() == "antigravity.exe":
+        if os.path.normcase(os.path.abspath(target)) == os.path.normcase(os.path.abspath(exe_path)):
+            parsed_args = split_windows_cmdline(raw_args)
+            if parsed_args and parsed_args[0].lower().endswith(
+                (".pyw", ".py", ".bat", ".cmd", ".vbs", ".ps1")
+            ):
+                return default_spec
+            return ([exe_path, *_ensure_debug_port_arg(parsed_args)], default_cwd)
+
+    return default_spec
+
+
 def relaunch_antigravity(app_dir):
     if not app_dir:
         return False
     if sys.platform == "win32":
-        exe_path = os.path.join(app_dir, "Antigravity.exe")
-        if os.path.exists(exe_path):
+        cmd, launch_cwd = resolve_windows_launch_spec(app_dir)
+        if cmd and os.path.exists(cmd[0]):
             clean_env = {
                 k: v
                 for k, v in os.environ.items()
@@ -363,8 +506,8 @@ def relaunch_antigravity(app_dir):
                 and not k.startswith(("ANTIGRAVITY_", "AGY_", "VSCODE_"))
             }
             subprocess.Popen(
-                [exe_path, "--remote-debugging-port=0"],
-                cwd=os.path.dirname(exe_path),
+                cmd,
+                cwd=launch_cwd or os.path.dirname(cmd[0]),
                 env=clean_env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,

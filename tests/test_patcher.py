@@ -99,6 +99,7 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                     "package.json": b'{"name":"antigravity","version":"2.34.0"}',
                     "dist/preload.js": b"console.log('preload');\n",
                     "dist/menu.js": b"console.log('menu');\n",
+                    "dist/languageServer.js": b"exports.startLanguageServer = async function startLanguageServer() {};\n",
                     "dist/updater.js": b"exports.init = () => {};\n",
                     "dist/tray.js": b"const a = 'Show Antigravity'; const b = 'Quit';\n",
                     "dist/main.js": b"const q = { title: 'Confirm Quit' };\n",
@@ -121,12 +122,24 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 "Antigravity Chinese Localization Engine",
                 (res_dir / "app" / "dist" / "preload.js").read_text(encoding="utf-8"),
             )
+            ls_js = res_dir / "app" / "dist" / "languageServer.js"
+            self.assertEqual(
+                ls_js.read_text(encoding="utf-8").count(
+                    "// Antigravity Chinese Localization Engine - System Proxy Bridge"
+                ),
+                1,
+            )
             self.assertEqual(_ag_common.read_installed_ag_version(str(app_dir)), "2.34.0")
 
-            # Existing installs must replace the previous renderer, even without an official update.
+            # Existing installs must replace the previous renderer & proxy bridge, even without an official update.
             preload = res_dir / "app" / "dist" / "preload.js"
             preload.write_text(
                 "console.log('preload');\n// Antigravity Chinese Localization Engine\nlegacyRenderer();\n",
+                encoding="utf-8",
+            )
+            ls_js.write_text(
+                "exports.startLanguageServer = async function startLanguageServer() {};\n"
+                "// Antigravity Chinese Localization Engine - System Proxy Bridge\nlegacyBridge();\n",
                 encoding="utf-8",
             )
             with mock.patch.dict(os.environ, {"ANTIGRAVITY_APP_DIR": str(app_dir)}), \
@@ -138,6 +151,13 @@ class TestAntigravityZhPatcher(unittest.TestCase):
             self.assertEqual(localized_preload.count("// Antigravity Chinese Localization Engine"), 1)
             self.assertNotIn("legacyRenderer", localized_preload)
             self.assertIn(Patcher.DOM_TRANSLATOR_INJECTION, localized_preload)
+            bridged_ls = ls_js.read_text(encoding="utf-8")
+            self.assertEqual(
+                bridged_ls.count("// Antigravity Chinese Localization Engine - System Proxy Bridge"),
+                1,
+            )
+            self.assertNotIn("legacyBridge", bridged_ls)
+            self.assertIn(Patcher.SYSTEM_PROXY_INJECTION, bridged_ls)
 
             # Simulate an official update delivering a corrupt app.asar while unpacked app exists:
             # rollback must keep existing unpacked app & new app.asar intact and leave no staging dir.
@@ -297,6 +317,8 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 dups.append(k)
             seen[k] = km.group(2)
         self.assertEqual(dups, [], f"Duplicate dictionary keys found: {dups}")
+        ws_keys = [k for k in seen if k != k.strip()]
+        self.assertEqual(ws_keys, [], f"Dictionary keys with leading/trailing whitespace: {ws_keys}")
         self.assertGreater(len(seen), 1500)
 
         # Hard architectural invariants from Codex P0/P1/P2 review
@@ -320,6 +342,19 @@ class TestAntigravityZhPatcher(unittest.TestCase):
             self.skipTest("node not installed")
         subprocess.run(
             [node, str(FIXTURES_DIR / "formatters.cjs"),
+             str(REPO_DIR / "antigravity_localization" / "renderer")],
+            check=True,
+        )
+
+    def test_system_proxy_bridge_in_node(self):
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node not installed")
+        subprocess.run(
+            [node, str(FIXTURES_DIR / "system_proxy.cjs"),
              str(REPO_DIR / "antigravity_localization" / "renderer")],
             check=True,
         )
@@ -402,6 +437,35 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["setTh"], "操作")
         self.assertEqual(res["setTdOpen"], "打开设置")
         self.assertEqual(res["setTd2d"], "2d")
+        self.assertEqual(res["tmbApp"], "Antigravity")
+        self.assertEqual(res["tmbOptVer"], "版本 v2.34.0")
+        self.assertEqual(res["tmbOptUpd"], "检查更新")
+        self.assertEqual(res["tmbWs"], "工作区")
+        self.assertEqual(res["tmbOptNew"], "新建对话")
+        self.assertEqual(res["tmbOptProj"], "创建项目")
+        self.assertEqual(res["tmbOptPal"], "命令面板")
+        self.assertEqual(res["tmbView"], "视图")
+        self.assertEqual(res["tmbWin"], "窗口")
+        self.assertEqual(res["homeGreetingTitle"], "欢迎回来，Orabone。我们从哪里继续？")
+        self.assertEqual(res["fakeChatGreeting"], "Welcome back, Orabone. Where should we pick up?")
+        self.assertEqual(res["selectSysDefault"], "系统默认")
+        self.assertEqual(res["effortExtraHigh"], "超高")
+        self.assertEqual(res["vpTitle"], "选择 Antigravity 语音")
+        self.assertEqual(res["setKnowledge"], "知识工作")
+        self.assertEqual(res["setPlanUltra"], "当前计划：Google AI Ultra")
+        self.assertEqual(res["setTosPrefix"], "使用本应用即表示您同意其 ")
+        self.assertEqual(res["setChangeBtn"], "更改…")
+        self.assertEqual(res["setShortcutSearch"], "搜索快捷键...")
+        self.assertEqual(res["setShowAll"], "显示全部")
+        self.assertEqual(res["setVoiceMode"], "语音模式")
+        self.assertEqual(res["setNotSet"], "未设置")
+        self.assertEqual(res["setOrchestrator"], "编排器设置")
+        self.assertEqual(res["setBrowsingHist"], "浏览历史")
+        self.assertEqual(res["setGoBack"], "后退")
+        self.assertEqual(res["setTermSelAll"], "终端：全选")
+        self.assertEqual(res["setThisComputer"], "本机（本地对话）")
+        self.assertEqual(res["setQueuedMsg"], "排队消息")
+        self.assertEqual(res["setRemoteData"], "远程智能体数据")
 
         # P0 destructive rules & P1 prototype pollution
         self.assertEqual(res["diagSee"], "See our server response: custom trace.")
@@ -630,6 +694,131 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                 self.assertLess(res["dclBootMs"], 30.0, res)
                 self.assertLess(res["maxRafMs"], 30.0, res)
                 self.assertEqual(res["longTasks"], [], res)
+
+    def test_shortcut_preserves_custom_proxy_wrapper_and_relaunch_spec(self):
+        self.assertEqual(_ag_common.split_windows_cmdline(""), [])
+        self.assertEqual(_ag_common.split_windows_cmdline("   "), [])
+        self.assertEqual(
+            _ag_common.split_windows_cmdline(
+                r'"C:\proxy\launch-antigravity.pyw" "D:\Tools\Antigravity\antigravity\Antigravity.exe" --proxy-server=http://127.0.0.1:7897'
+            ),
+            [
+                r"C:\proxy\launch-antigravity.pyw",
+                r"D:\Tools\Antigravity\antigravity\Antigravity.exe",
+                "--proxy-server=http://127.0.0.1:7897",
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            app_dir = root / "antigravity"
+            app_dir.mkdir(parents=True)
+            exe_path = app_dir / "Antigravity.exe"
+            exe_path.write_bytes(b"MZ")
+
+            wrapper_dir = root / "python312"
+            wrapper_dir.mkdir(parents=True)
+            wrapper_exe = wrapper_dir / "pythonw.exe"
+            wrapper_exe.write_bytes(b"MZ")
+            wrapper_script = root / "launch-antigravity.pyw"
+            wrapper_script.write_text("# wrapper", encoding="utf-8")
+
+            self.assertTrue(
+                _ag_common.is_custom_wrapper_shortcut(
+                    str(wrapper_exe),
+                    f'"{wrapper_script}" "{exe_path}"',
+                    str(exe_path),
+                )
+            )
+            self.assertFalse(
+                _ag_common.is_custom_wrapper_shortcut(str(exe_path), "", str(exe_path))
+            )
+            self.assertFalse(
+                _ag_common.is_custom_wrapper_shortcut(
+                    str(root / "missing-launcher.exe"), "", str(exe_path)
+                )
+            )
+
+            # Case 1: Custom proxy wrapper shortcut
+            cmd1, cwd1 = _ag_common.resolve_windows_launch_spec(
+                str(app_dir),
+                lnk_path=str(root / "Antigravity.lnk"),
+                shortcut_reader=lambda _p: {
+                    "TargetPath": str(wrapper_exe),
+                    "Arguments": f'"{wrapper_script}" "{exe_path}"',
+                    "WorkingDirectory": str(wrapper_dir),
+                },
+            )
+            self.assertEqual(
+                cmd1,
+                [str(wrapper_exe), str(wrapper_script), str(exe_path), "--remote-debugging-port=0"],
+            )
+            self.assertEqual(cwd1, str(wrapper_dir))
+
+            # Case 2: Direct Antigravity.exe shortcut with custom --proxy-server flag
+            cmd2, cwd2 = _ag_common.resolve_windows_launch_spec(
+                str(app_dir),
+                lnk_path=str(root / "Antigravity.lnk"),
+                shortcut_reader=lambda _p: {
+                    "TargetPath": str(exe_path),
+                    "Arguments": "--proxy-server=http://127.0.0.1:7897",
+                    "WorkingDirectory": str(app_dir),
+                },
+            )
+            self.assertEqual(
+                cmd2,
+                [str(exe_path), "--proxy-server=http://127.0.0.1:7897", "--remote-debugging-port=0"],
+            )
+            self.assertEqual(cwd2, str(app_dir))
+
+            # Case 3: Legacy corrupted shortcut (TargetPath=Antigravity.exe, Arguments starts with .pyw)
+            cmd3, cwd3 = _ag_common.resolve_windows_launch_spec(
+                str(app_dir),
+                lnk_path=str(root / "Antigravity.lnk"),
+                shortcut_reader=lambda _p: {
+                    "TargetPath": str(exe_path),
+                    "Arguments": f'"{wrapper_script}" "{exe_path}" --remote-debugging-port=0',
+                    "WorkingDirectory": str(app_dir),
+                },
+            )
+            self.assertEqual(cmd3, [str(exe_path), "--remote-debugging-port=0"])
+            self.assertEqual(cwd3, str(app_dir))
+
+            if sys.platform == "win32":
+                import subprocess
+
+                desktop = root / "Desktop"
+                desktop.mkdir()
+                lnk = desktop / "Antigravity.lnk"
+                ps_create = (
+                    f"$wsh = New-Object -ComObject WScript.Shell; "
+                    f"$s = $wsh.CreateShortcut('{str(lnk).replace(chr(39), chr(39)*2)}'); "
+                    f"$s.TargetPath = '{str(wrapper_exe).replace(chr(39), chr(39)*2)}'; "
+                    f"$s.Arguments = '\"{wrapper_script}\" \"{exe_path}\"'; "
+                    f"$s.WorkingDirectory = '{str(wrapper_dir).replace(chr(39), chr(39)*2)}'; "
+                    f"$s.Save()"
+                )
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_create],
+                    check=True,
+                )
+
+                with mock.patch.object(Patcher, "get_desktop_dir", lambda: str(desktop)):
+                    Patcher.ensure_desktop_shortcut(str(exe_path))
+                    info = _ag_common.read_windows_shortcut(str(lnk))
+                    self.assertIsNotNone(info)
+                    self.assertEqual(Path(info["TargetPath"]).resolve(), wrapper_exe.resolve())
+                    self.assertEqual(Path(info["WorkingDirectory"]).resolve(), wrapper_dir.resolve())
+                    self.assertIn(str(wrapper_script), info["Arguments"])
+                    self.assertIn("--remote-debugging-port=0", info["Arguments"])
+                    self.assertEqual(info["Arguments"].count("--remote-debugging-port"), 1)
+                    self.assertTrue(info["IconLocation"].startswith(str(exe_path)))
+
+                    # Second call must be completely idempotent
+                    Patcher.ensure_desktop_shortcut(str(exe_path))
+                    info2 = _ag_common.read_windows_shortcut(str(lnk))
+                    self.assertEqual(info2["Arguments"], info["Arguments"])
+                    self.assertEqual(info2["TargetPath"], info["TargetPath"])
 
 
 if __name__ == "__main__":

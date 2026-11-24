@@ -26,3 +26,4 @@ DOM_TRANSLATOR_INJECTION = (
     + "\n})();\n"
 )
 MENU_TRANSLATOR_INJECTION = _renderer_source("menu.js")
+SYSTEM_PROXY_INJECTION = _renderer_source("system_proxy.js")

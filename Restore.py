@@ -149,7 +149,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[错误] 执行过程中出现异常: {e}")
         print("\n如果问题持续，请访问 GitHub 提交 Issue:")
-        print("https://github.com/MIMICTE/Antigravity-zh-CN/issues")
+        print("https://github.com/imfateone/antigravity-zh-cn/issues")
         if not no_pause:
             input("\n按 Enter 键退出...")
         exit_code = 1

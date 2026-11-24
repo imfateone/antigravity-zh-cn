@@ -3,6 +3,28 @@
 <head><meta charset="utf-8"></head>
 <body>
 <div id="root">
+  <div data-testid="title-menu-bar">
+    <div>
+      <button data-testid="title-menu-bar-item" id="tmb-app">Antigravity</button>
+      <div>
+        <button data-testid="title-menu-bar-option" id="tmb-opt-ver"><span>Version 2.34.0</span></button>
+        <button data-testid="title-menu-bar-option" id="tmb-opt-upd"><span>Check for Updates</span></button>
+      </div>
+    </div>
+    <div>
+      <button data-testid="title-menu-bar-item" id="tmb-ws">Workspace</button>
+      <div>
+        <button data-testid="title-menu-bar-option" id="tmb-opt-new"><span>New Conversation</span><span>Ctrl+N</span></button>
+        <button data-testid="title-menu-bar-option" id="tmb-opt-proj"><span>Create Project</span></button>
+        <button data-testid="title-menu-bar-option" id="tmb-opt-pal"><span>Command Palette</span><span>Ctrl+Shift+P</span></button>
+      </div>
+    </div>
+    <div><button data-testid="title-menu-bar-item" id="tmb-view">View</button></div>
+    <div><button data-testid="title-menu-bar-item" id="tmb-win">Window</button></div>
+  </div>
+  <div data-testid="conversation-view" id="home-pane">
+    <div data-testid="home-greeting"><h1 class="home-greeting-title" id="home-greeting-title">Welcome back, Orabone. Where should we pick up?</h1></div>
+  </div>
   <aside data-testid="sidebar-navigation-items">
     <a href="#" data-testid="new-conversation-button" id="sidebar-action">New Conversation</a>
     <a href="#" title="Open" id="sidebar-user-title">Open</a>
@@ -28,6 +50,23 @@
   <div class="settings-modal-container" role="dialog">
     <h2 id="set-h2">Settings</h2>
     <p id="set-p">Manage your notification preferences</p>
+    <div id="set-v234-samples">
+      <span id="set-knowledge">Knowledge Work</span>
+      <span id="set-plan-ultra">Your Plan: Google AI Ultra</span>
+      <span id="set-tos-prefix">By using this app, you agree to its </span>
+      <button id="set-change-btn">Change…</button>
+      <input id="set-shortcut-search" type="text" placeholder="Search shortcuts...">
+      <button id="set-show-all">Show All</button>
+      <span id="set-voice-mode">Voice mode</span>
+      <span id="set-not-set">Not set</span>
+      <span id="set-orchestrator">Orchestrator Settings</span>
+      <span id="set-browsing-hist">Browsing History</span>
+      <span id="set-go-back">Go Back</span>
+      <span id="set-term-sel-all">Terminal: Select All</span>
+      <span id="set-this-computer">This computer</span>
+      <span id="set-queued-msg">Queued messages</span>
+      <span id="set-remote-data">Remote Agents Data</span>
+    </div>
     <table id="set-table">
       <tr><th id="set-th">Action</th><th>Shortcut</th></tr>
       <tr><td id="set-td-open">Open Settings</td><td id="set-td-2d">2d</td></tr>
@@ -130,6 +169,7 @@
             <button id="prose-fake-sum-btn">Review</button>
           </div>
           <div id="bare-role-btn-preview" role="button"><div><span id="bare-role-btn-review">Review</span></div></div>
+          <div data-testid="home-greeting"><h1 class="home-greeting-title" id="fake-chat-greeting">Welcome back, Orabone. Where should we pick up?</h1></div>
         </div>
           </div>
           <div data-testid="turn-cards-container">
@@ -208,6 +248,9 @@
     </div></div>
   </div>
   <iframe id="same-origin-frame" srcdoc="<!doctype html><html><body></body></html>"></iframe>
+  <div data-select-popup class="agy-overlay" id="select-popup-portal"><span id="select-sys-default">System default</span></div>
+  <span data-testid="orchestrator-picker-effort" id="effort-extra-high">Extra High</span>
+  <div data-testid="voice-picker"><div id="vp-title">Choose Antigravity's Voice</div></div>
 </div>
 
 <script src="__FIXTURE_JS_URL__"></script>
@@ -457,6 +500,35 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       setTh: document.getElementById('set-th').textContent,
       setTdOpen: document.getElementById('set-td-open').textContent,
       setTd2d: document.getElementById('set-td-2d').textContent,
+      tmbApp: document.getElementById('tmb-app').textContent,
+      tmbOptVer: document.getElementById('tmb-opt-ver').textContent,
+      tmbOptUpd: document.getElementById('tmb-opt-upd').textContent,
+      tmbWs: document.getElementById('tmb-ws').textContent,
+      tmbOptNew: document.getElementById('tmb-opt-new').querySelector('span').textContent,
+      tmbOptProj: document.getElementById('tmb-opt-proj').textContent,
+      tmbOptPal: document.getElementById('tmb-opt-pal').querySelector('span').textContent,
+      tmbView: document.getElementById('tmb-view').textContent,
+      tmbWin: document.getElementById('tmb-win').textContent,
+      homeGreetingTitle: document.getElementById('home-greeting-title').textContent,
+      fakeChatGreeting: document.getElementById('fake-chat-greeting').textContent,
+      selectSysDefault: document.getElementById('select-sys-default').textContent,
+      effortExtraHigh: document.getElementById('effort-extra-high').textContent,
+      vpTitle: document.getElementById('vp-title').textContent,
+      setKnowledge: document.getElementById('set-knowledge').textContent,
+      setPlanUltra: document.getElementById('set-plan-ultra').textContent,
+      setTosPrefix: document.getElementById('set-tos-prefix').textContent,
+      setChangeBtn: document.getElementById('set-change-btn').textContent,
+      setShortcutSearch: document.getElementById('set-shortcut-search').placeholder,
+      setShowAll: document.getElementById('set-show-all').textContent,
+      setVoiceMode: document.getElementById('set-voice-mode').textContent,
+      setNotSet: document.getElementById('set-not-set').textContent,
+      setOrchestrator: document.getElementById('set-orchestrator').textContent,
+      setBrowsingHist: document.getElementById('set-browsing-hist').textContent,
+      setGoBack: document.getElementById('set-go-back').textContent,
+      setTermSelAll: document.getElementById('set-term-sel-all').textContent,
+      setThisComputer: document.getElementById('set-this-computer').textContent,
+      setQueuedMsg: document.getElementById('set-queued-msg').textContent,
+      setRemoteData: document.getElementById('set-remote-data').textContent,
 
       // Non-destructive diagnostics & prototype safety
       diagSee: document.getElementById('diag-see').textContent,

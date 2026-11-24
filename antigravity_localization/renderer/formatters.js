@@ -349,6 +349,9 @@ const formats = (() => {
     }
 
     let m;
+    if ((m = trimmed.match(/^Your Plan:\s*(.+)$/))) {
+      return replaceTrimmed(text, '当前计划：' + m[1]);
+    }
     if (trimmed === 'Gemini 4 Argon is now available on paid Pro plans.' ||
         trimmed === 'Gemini 4 Argon is now available on paid Pro plans') {
       return replaceTrimmed(text, 'Gemini 4 Argon 现已面向付费 Pro 计划订阅用户开放。');
@@ -499,6 +502,32 @@ const formats = (() => {
     return text;
   }
 
+  function translateHomeGreeting(text) {
+    if (!text || typeof text !== 'string') return text;
+    const trimmed = text.trim();
+    if (!trimmed) return text;
+    if (trimmed === 'Hey there, what should we build today?') {
+      return replaceTrimmed(text, '你好，今天我们要构建什么？');
+    }
+    if (trimmed === 'Welcome back. Where should we pick up?') {
+      return replaceTrimmed(text, '欢迎回来，我们从哪里继续？');
+    }
+    if (trimmed === "Good to see you. What's next?") {
+      return replaceTrimmed(text, '很高兴见到你，接下来做什么？');
+    }
+    let m;
+    if ((m = trimmed.match(/^Hey\s+(.+?),\s*what should we build today\?$/))) {
+      return replaceTrimmed(text, '你好，' + m[1] + '。今天我们要构建什么？');
+    }
+    if ((m = trimmed.match(/^Welcome back,\s+(.+?)\.\s*Where should we pick up\?$/))) {
+      return replaceTrimmed(text, '欢迎回来，' + m[1] + '。我们从哪里继续？');
+    }
+    if ((m = trimmed.match(/^Good to see you,\s+(.+?)\.\s*What's next\?$/))) {
+      return replaceTrimmed(text, '很高兴见到你，' + m[1] + '。接下来做什么？');
+    }
+    return text;
+  }
+
   function exactLabel(map, text) {
     const value = map.get(text.trim());
     return value === undefined ? text : replaceTrimmed(text, value);
@@ -506,6 +535,7 @@ const formats = (() => {
 
   return {
     shell: translateAppShellText,
+    homeGreeting: translateHomeGreeting,
     composer: translateComposerText,
     status: translateChatStatusText,
     time: (text) => translateRelativeTime(text, true),

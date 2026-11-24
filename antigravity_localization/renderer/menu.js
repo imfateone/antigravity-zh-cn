@@ -2,6 +2,7 @@
 (function() {
   const menuTranslationMap = new Map(Object.entries({
     'File': '文件', 'Edit': '编辑', 'View': '视图', 'Window': '窗口', 'Help': '帮助',
+    'Workspace': '工作区', 'Create Project': '创建项目', 'Command Palette': '命令面板',
     'New Conversation': '新建对话', 'New Window': '新建窗口', 'Close Window': '关闭窗口',
     'Check for Updates': '检查更新', 'Checking for Updates...': '正在检查更新...',
     'Downloading Update...': '正在下载更新...', 'Restart to Update': '重启以应用更新',

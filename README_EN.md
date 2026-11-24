@@ -26,6 +26,7 @@ An open-source Chinese localization patch for Google Antigravity Desktop
 - 🎯 **Chat-Zone Default Zero-Write & UI Slot Whitelist** - Enforces default zero writes across user messages, bare/Markdown assistant replies, expanded thinking panels, artifact previews, code/terminal/math blocks, editable regions (including `contenteditable="plaintext-only"`), and form submission values; only verified UI slots (app shell, Settings, step triggers, file summary cards, feedback toolbar tooltips & timestamps, confirmation dialog chrome) are updated via non-destructive `Text.data` and independent display attributes—zero `innerHTML` rewrites and no false positives on `2D`/`3D`/`1M`
 - ⚡ **One-Click Deployment & Hot Update** - Automatically stops desktop processes (safely skipping Antigravity IDE), atomically swaps the unpacked bundle, and relaunches the app
 - 🛡️ **Clean, Reversible & Crash-Safe** - Includes cross-process file locking, staging-directory atomic swap with automatic rollback, and version-aware updater cache cleanup; `Restore.py` rolls back cleanly to the official English build at any time
+- 🌐 **TUN-Free System Proxy Bridge & Wrapper Shortcut Preservation** - Resolves OS system proxy / PAC settings dynamically via Electron's `resolveProxy` (supporting arbitrary ports and clients like Clash, v2rayN, or Surge) and passes them cleanly to `language_server` (opt-out via `ANTIGRAVITY_DISABLE_SYSTEM_PROXY_BRIDGE=1`), while preserving custom proxy wrapper desktop shortcuts
 - 🧭 **Cross-Platform Support** - Natively supports path resolution and process management on Windows and macOS (Intel & Apple Silicon)
 
 ## 📦 Installation & Usage
@@ -57,6 +58,7 @@ cd antigravity-zh-cn
   - `--no-relaunch`: Skip automatic app relaunch after patching/restoring
   - `--no-pause`: Exit immediately without waiting for Enter (useful for automation)
   - `ANTIGRAVITY_APP_DIR`: Explicitly specify a custom Antigravity installation directory
+  - `ANTIGRAVITY_DISABLE_SYSTEM_PROXY_BRIDGE=1`: Disable automatic OS system proxy bridging for `language_server`
 
 ---
 
@@ -94,15 +96,15 @@ uv run --no-project python -m unittest discover -s tests -v
 # or
 python -m unittest discover -s tests -v
 ```
-Runs 13 test suites covering ASAR extraction security, hot-update & failure rollback, updater cache version guards, cross-process locking, dictionary duplicate-key & static DOM safety invariants, Node text formatters, and headless Chromium regressions (zero content writes, journaled portal lifecycle & ID reuse, cross-frame cursor recovery, post-detach cross-microtask assignments, 2,000-turn & 2,000-span streaming benchmarks, and 2,000-button cold start & remount without flashbacks or long tasks). Node.js 22+ and a Chromium-based browser (Chrome or Edge) are required for the browser suites.
+Runs 15 test suites covering ASAR extraction security, hot-update & failure rollback, updater cache version guards, cross-process locking, custom proxy wrapper shortcut preservation, system proxy bridge (PAC parsing, WSL/explicit-proxy skip, timeout fail-open), dictionary duplicate-key & static DOM safety invariants, Node text formatters, and headless Chromium regressions (zero content writes, journaled portal lifecycle & ID reuse, cross-frame cursor recovery, post-detach cross-microtask assignments, 2,000-turn & 2,000-span streaming benchmarks, and 2,000-button cold start & remount without flashbacks or long tasks). Node.js 22+ and a Chromium-based browser (Chrome or Edge) are required for the browser suites.
 
 ### 5. Maintenance and Packaging
 
-- [Antigravity-Patcher.py](Antigravity-Patcher.py) handles installation, version transitions, and injection; [Restore.py](Restore.py) handles lossless rollback; [_ag_common.py](_ag_common.py) provides cross-platform path resolution, process control, locking, and updater cache management.
+- [Antigravity-Patcher.py](Antigravity-Patcher.py) handles installation, version transitions, and injection; [Restore.py](Restore.py) handles lossless rollback; [_ag_common.py](_ag_common.py) provides cross-platform path resolution, process control, locking, wrapper shortcut detection, and updater cache management.
 - [catalog.js](antigravity_localization/renderer/catalog.js) stores the dictionary; [formatters.js](antigravity_localization/renderer/formatters.js) formats durations, statuses, and dynamic UI labels.
 - [antigravity_dom.js](antigravity_localization/renderer/antigravity_dom.js) defines Antigravity's UI slots and hard content-protection boundaries; [engine.js](antigravity_localization/renderer/engine.js) handles frame scheduling, writes, and node lifecycles.
 - [mount_walk.js](antigravity_localization/renderer/mount_walk.js) resumes discovery across frames when nodes or ancestors are removed; [portal_registry.js](antigravity_localization/renderer/portal_registry.js) tracks thinking panels by element identity and mutation history.
-- [menu.js](antigravity_localization/renderer/menu.js) localizes the native Electron application menu.
+- [menu.js](antigravity_localization/renderer/menu.js) localizes the native Electron application menu; [system_proxy.js](antigravity_localization/renderer/system_proxy.js) forwards OS system proxy settings to `language_server` when needed.
 - [Antigravity-Patcher.spec](Antigravity-Patcher.spec) bundles the renderer modules into a standalone executable via `uvx pyinstaller Antigravity-Patcher.spec`.
 
 ## ⚠️ Known Limitations
@@ -136,13 +138,13 @@ This project is completely open-source and auditable:
 
 ### ✅ What We Do
 
-- **Local UI Display Only** - Replaces frontend UI display strings locally without intercepting network traffic, collecting telemetry, or accessing account credentials
+- **Local UI Display & Optional Proxy Inheritance Only** - Replaces frontend UI display strings locally and optionally passes the OS HTTP/PAC proxy setting to the spawned `language_server` subprocess without intercepting payloads, collecting telemetry, or accessing credentials
 - **Zero Impact on Transcripts or Model Context** - Never modifies local conversation history files or the prompts, tool schemas, and messages sent by the background language server to model APIs
 - **Open Source & Reversible** - Plain Python and JavaScript source with zero obfuscation and one-click lossless rollback
 
 ### 🛡️ Local File Footprint
 
-1. **`resources/app` (unpacked bundle)** - Appends idempotent marker-guarded blocks to `dist/preload.js` and `dist/menu.js`, and localizes static tray/quit/splash strings in `dist/tray.js`, `dist/main.js`, `dist/provisionSplash.js`, and `dist/loadingOverlay.js`
+1. **`resources/app` (unpacked bundle)** - Appends idempotent marker-guarded blocks to `dist/preload.js`, `dist/menu.js`, and `dist/languageServer.js`, and localizes static tray/quit/splash strings in `dist/tray.js`, `dist/main.js`, `dist/provisionSplash.js`, and `dist/loadingOverlay.js`
 2. **`resources/app.asar.disabled`** - Preserves the unmodified official `app.asar` archive for instant restoration and version checks
 
 ### About Standalone Executables

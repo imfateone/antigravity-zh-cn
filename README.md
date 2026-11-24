@@ -27,6 +27,7 @@
 - 🎯 **会话区默认零写入 & UI 槽位白名单** - 基于持久化会话宿主与硬保护边界，对用户消息、AI 裸回复/Markdown 正文、思考过程、产物预览、代码/终端、数学公式、编辑区（含 `contenteditable="plaintext-only"`）与表单提交值实行**默认零写入**；仅对已验证 UI 槽位（应用壳子、设置页、步骤状态触发器、文件汇总卡、反馈操作栏提示与时间戳、确认弹窗固定文案）做非破坏性 `Text.data` 与独立展示属性更新，绝不重写 `innerHTML` 或误翻 `2D`/`3D`/`1M` 等技术标识
 - ⚡ **一键部署与热更新** - 执行补丁后自动清理桌面端进程（精准跳过 Antigravity IDE）、原子替换解包目录并重启软件，实现“双击运行 → 享受中文”的无缝体验
 - 🛡️ **纯净可逆 & 失败自动回滚** - 内置跨进程文件锁、暂存目录原子切换与版本感知缓存清理；还原脚本可随时无损回滚至纯血官方英文版
+- 🌐 **免 TUN 系统代理自动桥接 & 启动器保护** - 原生通过 Electron `resolveProxy` 读取系统代理与 PAC（支持任意端口与 Clash / v2rayN / Surge 等代理软件），安全透传给语言服务 `language_server`（可通过 `ANTIGRAVITY_DISABLE_SYSTEM_PROXY_BRIDGE=1` 关闭），同时自动识别并保留桌面自定义代理快捷方式（如 `pythonw.exe` 包装器）
 - 🧭 **全动态跨平台支持** - 原生支持 Windows 及 macOS（Intel 与 Apple Silicon）环境下的路径寻址与进程管理
 
 ## 📦 安装与使用
@@ -58,6 +59,7 @@ cd antigravity-zh-cn
   - `--no-relaunch`：注入或还原完成后不自动重启客户端
   - `--no-pause`：执行结束后不等待回车（适合脚本或外部管理器静默调用）
   - `ANTIGRAVITY_APP_DIR`：手动指定自定义 Antigravity 安装目录
+  - `ANTIGRAVITY_DISABLE_SYSTEM_PROXY_BRIDGE=1`：禁用系统代理自动桥接（回退为完全不读取系统代理的默认行为）
 
 ---
 
@@ -95,15 +97,15 @@ uv run --no-project python -m unittest discover -s tests -v
 # 或
 python -m unittest discover -s tests -v
 ```
-共包含 13 项测试套件，涵盖 ASAR 解包安全校验、补丁热更新与失败回滚、更新缓存版本守护、跨进程锁、词典重复键与静态安全不变量检查、Node 纯文案格式化回归，以及基于真实无头 Chromium 的全量回归（正文零写入、Portal 历史归属与同 ID 复用、跨帧裁剪游标恢复、脱离子树跨微任务赋值保留、2,000 轮对话与 2,000 文本块流式零开销、2,000 个按钮冷启动与重挂载零闪回/无长任务）。需安装 Node.js 22+ 与 Chromium 内核浏览器（Chrome 或 Edge）以运行浏览器用例。
+共包含 15 项测试套件，涵盖 ASAR 解包安全校验、补丁热更新与失败回滚、更新缓存版本守护、跨进程锁、自定义代理快捷方式保留、系统代理桥接（PAC 解析、WSL/显式代理跳过、超时 Fail-Open）、词典重复键与静态安全不变量检查、Node 纯文案格式化回归，以及基于真实无头 Chromium 的全量回归（正文零写入、Portal 历史归属与同 ID 复用、跨帧裁剪游标恢复、脱离子树跨微任务赋值保留、2,000 轮对话与 2,000 文本块流式零开销、2,000 个按钮冷启动与重挂载零闪回/无长任务）。需安装 Node.js 22+ 与 Chromium 内核浏览器（Chrome 或 Edge）以运行浏览器用例。
 
 ### 5. 维护与打包
 
-- [Antigravity-Patcher.py](Antigravity-Patcher.py) 负责安装、版本切换和注入；[Restore.py](Restore.py) 负责无损还原；[_ag_common.py](_ag_common.py) 提供跨平台寻址、进程控制、文件锁与更新缓存管理。
+- [Antigravity-Patcher.py](Antigravity-Patcher.py) 负责安装、版本切换和注入；[Restore.py](Restore.py) 负责无损还原；[_ag_common.py](_ag_common.py) 提供跨平台寻址、进程控制、文件锁、自定义启动器快捷方式识别与更新缓存管理。
 - [catalog.js](antigravity_localization/renderer/catalog.js) 保存词典；[formatters.js](antigravity_localization/renderer/formatters.js) 处理时长、状态和动态文案模式。
 - [antigravity_dom.js](antigravity_localization/renderer/antigravity_dom.js) 定义 Antigravity DOM 槽位与正文硬保护边界；[engine.js](antigravity_localization/renderer/engine.js) 负责分帧调度、属性/文本写入和节点生命周期。
 - [mount_walk.js](antigravity_localization/renderer/mount_walk.js) 在节点或祖先被跨帧移除时保持后续扫描不中断；[portal_registry.js](antigravity_localization/renderer/portal_registry.js) 按元素身份和变更顺序日志管理思考面板保护。
-- [menu.js](antigravity_localization/renderer/menu.js) 负责 Electron 原生顶部菜单栏汉化。
+- [menu.js](antigravity_localization/renderer/menu.js) 负责 Electron 原生顶部菜单栏汉化；[system_proxy.js](antigravity_localization/renderer/system_proxy.js) 负责按需将系统代理透传给 `language_server`。
 - [Antigravity-Patcher.spec](Antigravity-Patcher.spec) 将渲染器资源并入单文件发行包，可在仓库根目录执行 `uvx pyinstaller Antigravity-Patcher.spec` 构建。
 
 ## ⚠️ 已知限制
@@ -137,13 +139,13 @@ python -m unittest discover -s tests -v
 
 ### ✅ 我们做了什么
 
-- **仅修改本地前端展示文案** - 只在本地客户端替换界面显示文本，不拦截网络通信、不收集任何数据、不接触账号凭证
+- **仅修改本地前端展示文案与可选语言服务代理继承** - 只在本地客户端替换界面显示文本，并在语言服务启动瞬间按需把当前系统的 HTTP/PAC 代理临时透传给子进程，不拦截或上传任何数据、不接触账号凭证
 - **不污染会话与模型上下文** - 不修改本地历史对话记录文件，也不干预后台语言服务发往模型接口的 Prompt 与工具调用负载
 - **开源可审计 & 完全可逆** - 纯 Python 与原生 JavaScript 明文源码，无混淆或联网逻辑，随时可通过还原脚本一键恢复官方原版
 
 ### 🛡️ 本地文件变更范围
 
-1. **`resources/app`（解包目录）** - 向 `dist/preload.js` 与 `dist/menu.js` 注入本地化脚本（带唯一标记，支持幂等热更新），并替换 `dist/tray.js`、`dist/main.js`、`dist/provisionSplash.js`、`dist/loadingOverlay.js` 中的托盘、退出确认框与启动页固定文案
+1. **`resources/app`（解包目录）** - 向 `dist/preload.js`、`dist/menu.js` 与 `dist/languageServer.js` 注入本地化与系统代理桥接脚本（带唯一标记，支持幂等热更新），并替换 `dist/tray.js`、`dist/main.js`、`dist/provisionSplash.js`、`dist/loadingOverlay.js` 中的托盘、退出确认框与启动页固定文案
 2. **`resources/app.asar.disabled`** - 原封不动保留官方原始 `app.asar` 备份，供还原或版本校验使用
 
 ### 关于免安装可执行版 (Windows .exe / macOS 二进制文件)

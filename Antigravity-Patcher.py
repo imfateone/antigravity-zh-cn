@@ -23,13 +23,17 @@ from _ag_common import (  # noqa: E402
     get_desktop_dir,
     get_resources_dir,
     is_antigravity_running,
+    is_custom_wrapper_shortcut,
+    read_windows_shortcut,
     relaunch_antigravity,
+    split_windows_cmdline,
     stop_antigravity_desktop_processes,
 )
 
 from antigravity_localization import (  # noqa: E402
     DOM_TRANSLATOR_INJECTION,
     MENU_TRANSLATOR_INJECTION,
+    SYSTEM_PROXY_INJECTION,
 )
 
 _resolve_resources_dir = get_resources_dir
@@ -154,6 +158,55 @@ def ensure_desktop_shortcut(exe_path):
     if not desktop or not os.path.exists(desktop):
         return
     lnk_path = os.path.join(desktop, "Antigravity.lnk")
+    existing = read_windows_shortcut(lnk_path) if os.path.isfile(lnk_path) else None
+
+    if existing and is_custom_wrapper_shortcut(
+        existing.get("TargetPath"), existing.get("Arguments"), exe_path
+    ):
+        existing_args = str(existing.get("Arguments") or "").strip()
+        existing_icon = str(existing.get("IconLocation") or "").strip()
+        needs_port = (
+            "antigravity.exe" in existing_args.lower()
+            and "--remote-debugging-port" not in existing_args.lower()
+        )
+        needs_icon = (not existing_icon) or existing_icon.startswith(",")
+        if not needs_port and not needs_icon:
+            print(f"[保留] 检测到自定义代理/启动器快捷方式，已保留原配置: {lnk_path}")
+            return
+        lnk_ps = lnk_path.replace("'", "''")
+        exe_ps = exe_path.replace("'", "''")
+        ps_parts = [
+            "$wsh = New-Object -ComObject WScript.Shell;",
+            f"$s = $wsh.CreateShortcut('{lnk_ps}');",
+        ]
+        if needs_port:
+            ps_parts.append("$s.Arguments = ($s.Arguments + ' --remote-debugging-port=0').Trim();")
+        if needs_icon:
+            ps_parts.append(f"$s.IconLocation = '{exe_ps},0';")
+        ps_parts.append("$s.Save()")
+        ps_cmd = " ".join(ps_parts)
+        try:
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+                check=True,
+                creationflags=0x08000000 if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            print(f"[保留] 已保留自定义启动器快捷方式并补齐配置: {lnk_path}")
+        except Exception as e:
+            print(f"[提示] 更新自定义快捷方式跳过: {e}")
+        return
+
+    if existing:
+        existing_args = str(existing.get("Arguments") or "").strip()
+        parsed_args = split_windows_cmdline(existing_args)
+        if parsed_args and parsed_args[0].lower().endswith(
+            (".pyw", ".py", ".bat", ".cmd", ".vbs", ".ps1")
+        ) and "antigravity.exe" in existing_args.lower():
+            print(
+                f"[警告] 检测到桌面快捷方式疑似曾被旧版补丁覆盖，当前参数首项为脚本路径 ({parsed_args[0]})，"
+                "请检查快捷方式 TargetPath 是否应恢复为对应启动器（如 pythonw.exe）。"
+            )
+
     lnk_ps = lnk_path.replace("'", "''")
     exe_ps = exe_path.replace("'", "''")
     workdir_ps = os.path.dirname(exe_path).replace("'", "''")
@@ -206,11 +259,18 @@ def _restore_update_yml(resources_dir):
 def _inject_all_translations(target_app_dir):
     preload_path = os.path.join(target_app_dir, "dist", "preload.js")
     menu_path = os.path.join(target_app_dir, "dist", "menu.js")
+    language_server_path = os.path.join(target_app_dir, "dist", "languageServer.js")
     tray_path = os.path.join(target_app_dir, "dist", "tray.js")
     updater_path = os.path.join(target_app_dir, "dist", "updater.js")
 
     append_once(preload_path, DOM_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine", "Web UI Injection")
     append_once(menu_path, MENU_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine - Menu", "Menu Translator Injection")
+    append_once(
+        language_server_path,
+        SYSTEM_PROXY_INJECTION,
+        "Antigravity Chinese Localization Engine - System Proxy Bridge",
+        "System Proxy Bridge",
+    )
     remove_injected_block(updater_path, "Antigravity Chinese Localization Engine - Auto Update Hook", "自动更新封锁 Hook")
 
     replace_in_file(tray_path, "'Show Antigravity'", "'显示 Antigravity'")
