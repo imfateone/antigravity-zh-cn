@@ -15,8 +15,28 @@ const dom = (() => {
     '[class~="group/user-input-step"]', '[data-testid="inline-permission-error"]', '[data-diagnostic]',
     '[class*="thought-content"]', '[class*="thinking-content"]', '[class*="reasoning-content"]',
     '.bleed-contain',
-    '#agy-monitor-footer-host', '#agy-monitor-popover-host', '[data-agy-turn-host]',
+    '#agy-monitor-footer-host', '#agy-monitor-popover-host', '[id^="agy-monitor-"]', '[data-agy-turn-host]',
+    '[data-testid="gcp-project-combobox-list"]', '[data-testid="project-selector-item"]',
+    '[data-testid="project-selector-github-repo-item"]',
+    '[data-testid="overview-panel-host-header"]',
+    '[data-testid^="overview-decorator-"]', '[data-testid^="overview-accumulated-section-"]',
     '[contenteditable]:not([contenteditable="false"])', '[data-lexical-editor]', '[role="textbox"]', artifact,
+  ].join(', ');
+  const pruneBlocked = [
+    'script', 'style', 'pre', 'code', 'svg', 'math', 'iframe', 'object', 'embed', 'canvas',
+    'noscript', 'template', 'option', '.monaco-editor', '.xterm', '.katex',
+    'article', 'blockquote', '.prose', '[data-markdown]', '[data-markdown-root]',
+    '[data-message-content]', '[data-testid="user-message"]', '[data-testid="user-input-step"]',
+    '[class~="group/user-input-step"]', '[data-testid="inline-permission-error"]', '[data-diagnostic]',
+    '[class*="thought-content"]', '[class*="thinking-content"]', '[class*="reasoning-content"]',
+    '.bleed-contain',
+    '#agy-monitor-footer-host', '#agy-monitor-popover-host', '[id^="agy-monitor-"]', '[data-agy-turn-host]',
+    '[data-testid="gcp-project-combobox-list"]', '[data-testid="project-selector-item"]',
+    '[data-testid="project-selector-github-repo-item"]',
+    '[data-testid="overview-panel-host-header"]',
+    '[data-testid^="overview-decorator-"]', '[data-testid^="overview-accumulated-section-"]',
+    '[contenteditable]:not([contenteditable="false"])', '[data-lexical-editor]', '[role="textbox"]',
+    '[data-artifact-content]', '[data-artifact-preview]', '.artifact-preview',
   ].join(', ');
   const statusIds = new Set([
     'worked-for-collapsible', 'thinking-collapsible-trigger',
@@ -27,14 +47,69 @@ const dom = (() => {
   ]);
   const shell = [
     '[data-testid="settings-sidebar"]', '[data-testid="settings-app-version-card"]',
-    '[data-testid="settings-button"]', '[data-testid="app-update-button"]',
-    '[data-testid="overview-panel-host-header"]',
-    '[data-testid="title-menu-bar"]', '[data-testid="voice-picker"]',
-    '[data-testid="orchestrator-picker-effort"]', '[data-select-popup].agy-overlay',
+    '[data-testid="settings-button"]', '[data-testid="app-update-button"]', '[data-testid="manual-update-button"]',
+    '[data-testid="title-menu-bar"]', '[data-testid="voice-picker"]', '[data-testid="voice-speed-panel"]',
+    '[data-testid="orchestrator-picker-effort"]',
+    '[data-select-popup].agy-overlay:not([data-testid="gcp-project-combobox-popup"])',
     '[data-testid="plugins-tabs"]', '[data-testid="plugins-section-header"]',
     '[data-testid="plugin-detail"]', '[data-testid="marketplace-filter-menu"]',
     '[data-testid="permissions-menu"]', '[data-testid="model-selector-panel"]',
     '[data-testid="mcp-config-modal"]', '[role="dialog"].settings-modal-container',
+    '[data-testid="declared-permissions-modal"]', '[data-testid="plugin-source-caution-modal"]',
+    '[data-testid="delete-mcp-modal"]', '[data-testid="delete-sidecar-modal"]', '[data-testid="add-mcp-button"]',
+    '[data-testid="bottom-terminal-panel-title"]', '[data-testid="bottom-terminal-panel-new"]',
+    '[data-testid="bottom-terminal-panel-empty"]', '[data-testid="bottom-terminal-panel-empty-new"]',
+    '[data-testid="bottom-terminal-panel-close"]', '[data-testid="bottom-terminal-panel-menu-split"]',
+    '[data-testid="bottom-terminal-panel-menu-kill"]', '[data-testid="bottom-terminal-panel-starting"]',
+    '[data-testid="builtin-browser-back"]', '[data-testid="builtin-browser-forward"]',
+    '[data-testid="builtin-browser-reload"]', '[data-testid="builtin-browser-placeholder"]',
+    '[data-testid="builtin-browser-download-dir-change"]', '[data-testid="builtin-browser-download-dir-reset"]',
+    '[data-testid="browser-error-retry-button"]', '[data-testid="browser-clear-data-button"]',
+    '[data-testid="browser-clear-data-confirm"]', '[data-testid="clear-browser-history-button"]',
+    '[data-testid="browser-site-data-manage-button"]', '[data-testid="webview-url-bar-open-external"]',
+    '[data-testid="webview-url-bar-downloads"]', '[data-testid="preview-url-bar-open-new-tab"]',
+    '[data-testid="file-explorer-refresh"]', '[data-testid="file-tree-filter-input"]',
+    '[data-testid="file-tree-filter-clear"]', '[data-testid="file-tree-filter-empty"]',
+    '[data-testid="file-tree-filter-error"]',
+    '[data-testid="sidebar-toggle"]', '[data-testid="sidebar-search-button"]',
+    '[data-testid="customize-sidebar-button"]', '[data-testid="customize-sidebar-modal"]',
+    '[data-testid="filter-sort-button"]', '[data-testid="filter-submenu-trigger"]',
+    '[data-testid="group-by-submenu-trigger"]', '[data-testid="display-submenu-trigger"]',
+    '[data-testid="conversations-palette-filter-trigger"]', '[data-testid="palette-filter-archived"]',
+    '[data-testid="palette-filter-scheduled"]', '[data-testid="palette-filter-unread"]',
+    '[data-testid="palette-sort-last_updated"]', '[data-testid="palette-sort-last_user_prompt"]',
+    '[data-testid="project-selector-search"]', '[data-testid="project-selector-create-project-trigger"]',
+    '[data-testid="project-selector-new-workspace"]', '[data-testid="project-selector-connect-github"]',
+    '[data-testid="project-selector-connect-ssh-host"]', '[data-testid="project-selector-configure-github-app"]',
+    '[data-testid="toolbar-overflow-trigger"]', '[data-testid="overflow-menu"]',
+    '[data-testid="automation-settings-save"]', '[data-testid="automation-settings-cancel"]',
+    '[data-testid="schedule-editor-save"]', '[data-testid="running-confirm-stop"]',
+    '[data-testid="running-row-stop"]', '[data-testid="running-selection-stop"]',
+    '[data-testid="side-question-insert-to-main"]', '[data-testid="side-question-popout"]',
+    '[data-testid="selection-quote-button"]', '[data-testid="selection-popup-quote-button"]',
+    '[data-testid="selection-btw-button"]', '[data-testid="selection-comment-button"]',
+  ].join(', ');
+  const overviewRowSelector = [
+    '[data-testid="overview-panel-row-review"]',
+    '[data-testid="overview-panel-row-files"]',
+    '[data-testid="overview-panel-row-terminal"]',
+    '[data-testid="overview-panel-row-plugins"]',
+  ].join(', ');
+  const overviewExcludedSelector = [
+    '[data-testid="overview-panel-host-header"]',
+    '[data-testid^="overview-decorator-"]',
+    '[data-testid^="overview-accumulated-section-"]',
+    '[data-testid="overview-panel-row-review-detail"]',
+    '[data-testid="overview-panel-row-review-diff-stats"]',
+  ].join(', ');
+  const overviewAuxSectionSelector = [
+    '[data-testid="aux-pane-background-tasks-section"]',
+    '[data-testid="aux-pane-terminals-section"]',
+  ].join(', ');
+  const artifactHeaderExclusion = [
+    '[data-artifact-content]', '[data-artifact-preview]', '.artifact-preview',
+    'pre', 'code', '.monaco-editor', '.xterm',
+    '[id^="agy-monitor-"]', '[data-agy-turn-host]',
   ].join(', ');
   const shellToolbar = '[data-testid="sidebar-navigation-items"], [data-testid="pane-titlebar-toolbar"]';
   const sidebarActions = new Set(['new-conversation-button', 'automations-button', 'plugins-button']);
@@ -58,6 +133,7 @@ const dom = (() => {
   const shellSlot = slot((text) => formats.shell(text, shellOptions));
   const shellAttrOptions = { allowRelTime: false, allowBareRelTime: false, allowCoreWords: true, allowExtraLabels: false };
   const shellAttr = (text) => formats.shell(text, shellAttrOptions);
+  const shellAttrSlot = slot(shellAttr, false);
   const placeholderSlot = slot(shellAttr, true);
   const confirmTitles = new Set(['Confirm Undo', 'Confirm Redo', '确认撤销', '确认重做']);
 
@@ -219,7 +295,81 @@ const dom = (() => {
     return Boolean(element.closest(protectedContent));
   }
 
+  function shouldPrune(element) {
+    return Boolean(element.closest(pruneBlocked));
+  }
+
+  function artifactHeaderButton(element) {
+    const hdr = element.closest('[data-testid="artifact-editor-header"]');
+    const btn = element.closest('button');
+    return Boolean(
+      hdr && btn && hdr.contains(btn) &&
+      !editable(element) &&
+      !element.closest(artifactHeaderExclusion)
+    );
+  }
+
+  function overviewSlot(element) {
+    const auxSection = element.closest(overviewAuxSectionSelector);
+    if (auxSection) {
+      return element.closest('span.agy-hover-label') ? shellSlot : null;
+    }
+    const panel = element.closest('[data-testid="overview-panel"]');
+    if (!panel || element.closest(overviewExcludedSelector)) return null;
+    if (element.closest('[data-testid="overview-panel-customize-trigger"]')) return shellSlot;
+
+    const row = element.closest(overviewRowSelector);
+    if (row && panel.contains(row)) {
+      const label = element.closest('span.agy-hover-label');
+      return label && row.contains(label) ? shellSlot : null;
+    }
+
+    const hoverLabel = element.closest('span.agy-hover-label');
+    if (hoverLabel && panel.contains(hoverLabel)) {
+      const a6Header = hoverLabel.parentElement;
+      if (a6Header?.parentElement?.parentElement === panel) return shellSlot;
+      const section = a6Header?.parentElement;
+      if (section && panel.contains(section) && section.matches('div.p-1') && !a6Header.previousElementSibling) {
+        return shellSlot;
+      }
+    }
+
+    const expandBtn = element.closest('button[type="button"][aria-expanded]');
+    if (expandBtn && panel.contains(expandBtn) && expandBtn.parentElement?.matches('div.p-1') && expandBtn.previousElementSibling) {
+      return shellSlot;
+    }
+    return null;
+  }
+
+  function escapeAttrSelector(value) {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(value);
+    }
+    return String(value).replace(/["\\\]\r\n]/g, '\\$&');
+  }
+
+  function verifiedTooltipSlot(element) {
+    const tip = element.closest('[role="tooltip"][id]');
+    const tipId = tip?.getAttribute('id');
+    if (!tip || !tipId) return null;
+    const doc = element.ownerDocument;
+    if (!doc?.querySelector) return null;
+    const trigger = doc.querySelector(`[data-tooltip-id="${escapeAttrSelector(tipId)}"]`);
+    if (!trigger || isProtected(trigger)) return null;
+    if (
+      feedbackButton(trigger) ||
+      statusButton(trigger) === trigger ||
+      composerControl(trigger) ||
+      shellOwner(trigger) ||
+      overviewSlot(trigger)
+    ) {
+      return shellAttrSlot;
+    }
+    return null;
+  }
+
   function textSlot(element) {
+    if (artifactHeaderButton(element)) return artifactSlot;
     if (isProtected(element) || editable(element)) return null;
     const step = statusButton(element);
     if (step) return statusSlot;
@@ -239,8 +389,11 @@ const dom = (() => {
     if (composerControl(element)) return composerSlot;
     if (homeGreeting(element)) return homeGreetingSlot;
     if (inChat(element)) return null;
-    if (element.closest('[data-testid="artifact-editor-header"]')) return element.closest('button') ? artifactSlot : null;
-    if (element.closest('.artifact-sidebar')) return null;
+    const overview = overviewSlot(element);
+    if (overview) return overview;
+    const tooltip = verifiedTooltipSlot(element);
+    if (tooltip) return tooltip;
+    if (element.closest('[data-testid="artifact-editor-header"]') || element.closest('.artifact-sidebar')) return null;
     const confirmation = confirmSlot(element);
     if (confirmation) return confirmation;
     if (!shellOwner(element)) return null;
@@ -248,6 +401,7 @@ const dom = (() => {
   }
 
   function attrFormatter(element, name) {
+    if (artifactHeaderButton(element) && name !== 'placeholder') return formats.artifactAction;
     if (isProtected(element)) return null;
     if (name === 'placeholder') {
       if (!element.matches(input)) return null;
@@ -259,13 +413,14 @@ const dom = (() => {
     if (statusButton(element) === element) return formats.status;
     if (composerControl(element) && element.matches('button, [role="combobox"], [role="switch"]')) return formats.composer;
     if (inChat(element)) return null;
-    if (element.matches('button') && element.closest('[data-testid="artifact-editor-header"]')) return formats.artifactAction;
+    if (overviewSlot(element)) return shellAttr;
     if (element.closest('.artifact-sidebar')) return null;
     return shellOwner(element) ? shellAttr : null;
   }
 
   return {
-    textSlot, attrFormatter, isProtected, statusButton, statusCandidate, ownsStatusHeader,
+    textSlot, attrFormatter, isProtected, shouldPrune, shellOwner, overviewSlot,
+    statusButton, statusCandidate, ownsStatusHeader,
     isProtectedRoot: (element) => element.matches(protectedContent),
   };
 })();

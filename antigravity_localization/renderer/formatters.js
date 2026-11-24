@@ -443,7 +443,9 @@ const formats = (() => {
     if ((m = trimmed.match(/^Uploads?\s*(\d+)$/i))) return replaceTrimmed(text, '已上传文件 ' + m[1]);
     if ((m = trimmed.match(/^See all\s*\((.+?)\)$/i))) return replaceTrimmed(text, '查看全部 (' + m[1] + ')');
     if ((m = trimmed.match(/^Background Tasks?\s*(\d+)$/i))) return replaceTrimmed(text, '后台任务 ' + m[1]);
+    if ((m = trimmed.match(/^Background Tasks?\s*\((\d+)\)$/i))) return replaceTrimmed(text, '后台任务 (' + m[1] + ')');
     if ((m = trimmed.match(/^Terminals?\s*(\d+)$/i))) return replaceTrimmed(text, '终端 ' + m[1]);
+    if ((m = trimmed.match(/^Terminals?\s*\((\d+)\)$/i))) return replaceTrimmed(text, '终端 (' + m[1] + ')');
     if (/^No\s+subagents?(?:\s*running)?\.?$/i.test(trimmed)) return replaceTrimmed(text, '暂无子智能体');
     if ((m = trimmed.match(/^Available AI Credits:\s*([\d,]+)$/))) {
       return replaceTrimmed(text, '可用 AI 积分: ' + m[1]);
@@ -455,6 +457,7 @@ const formats = (() => {
       return replaceTrimmed(text, '更多 ' + m[1] + ' 行');
     }
     if ((m = trimmed.match(/^See\s+(\d+)\s+more$/i))) return replaceTrimmed(text, '查看更多 ' + m[1] + ' 项');
+    if ((m = trimmed.match(/^Show\s+(\d+)\s+more$/i))) return replaceTrimmed(text, '展开其余 ' + m[1] + ' 项');
     if ((m = trimmed.match(/^Last\s+(\d+)\s+days?$/i))) return replaceTrimmed(text, '最近 ' + m[1] + ' 天');
     if ((m = trimmed.match(/^Last\s+(\d+)\s+hours?$/i))) return replaceTrimmed(text, '最近 ' + m[1] + ' 小时');
     if ((m = trimmed.match(/^Last\s+(\d+)\s+months?$/i))) return replaceTrimmed(text, '最近 ' + m[1] + ' 个月');

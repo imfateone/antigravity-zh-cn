@@ -22,6 +22,17 @@
     'Debug Console': '调试控制台', 'Bring All to Front': '前置全部窗口', 'Quit': '退出'
   }));
 
+  const reverseLabelMap = new Map();
+  for (const [en, zh] of menuTranslationMap.entries()) {
+    if (!reverseLabelMap.has(zh)) {
+      reverseLabelMap.set(zh, en);
+    }
+  }
+
+  // WSL distro submenus hold dynamic user/distro names (e.g. Ubuntu, Default, Settings)
+  // that must never be localized when translating the parent item.
+  const SKIP_SUBMENU_PARENTS = new Set(['Connect to WSL', '连接至 WSL']);
+
   function translateLabelStr(lbl) {
     if (!lbl || typeof lbl !== 'string') return lbl;
     const clean = lbl.replace(/&([A-Za-z])/g, '$1');
@@ -32,14 +43,103 @@
     return lbl;
   }
 
+  function resolveOriginalLabel(item) {
+    if (!item || typeof item.label !== 'string') return item?.label;
+    if (reverseLabelMap.has(item.label)) return reverseLabelMap.get(item.label);
+    if (menuTranslationMap.has(item.label)) return item.label;
+    if (typeof item.__agOrigLabel === 'string') return item.__agOrigLabel;
+    return item.label;
+  }
+
+  function createMenuItemProxy(item) {
+    return new Proxy(item, {
+      get(target, prop) {
+        if (prop === 'label') {
+          return resolveOriginalLabel(target);
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+  }
+
+  function wrapMenuItemClick(item) {
+    if (!item || typeof item.click !== 'function' || item.click.__agWrappedClick) {
+      return;
+    }
+    const origClick = item.click;
+    const wrappedClick = function agWrappedMenuClick(menuItem, ...rest) {
+      const forwarded =
+        menuItem && typeof menuItem === 'object' ? createMenuItemProxy(menuItem) : menuItem;
+      return origClick.call(this, forwarded, ...rest);
+    };
+    try {
+      Object.defineProperty(wrappedClick, '__agWrappedClick', {
+        value: true,
+        enumerable: false,
+      });
+      item.click = wrappedClick;
+    } catch (_) {}
+  }
+
+  function patchMenuItemsFind(menu) {
+    const items = menu && menu.items;
+    if (!Array.isArray(items) || items.__agOrigFind) return;
+    const origFind = items.find;
+    try {
+      Object.defineProperty(items, '__agOrigFind', {
+        value: origFind,
+        configurable: true,
+        enumerable: false,
+      });
+      Object.defineProperty(items, 'find', {
+        value: function agPatchedItemsFind(predicate, thisArg) {
+          if (typeof predicate !== 'function') {
+            return origFind.apply(this, arguments);
+          }
+          const direct = origFind.call(this, predicate, thisArg);
+          if (direct !== undefined) return direct;
+          for (let i = 0; i < this.length; i++) {
+            const item = this[i];
+            if (!item || typeof item !== 'object') continue;
+            if (predicate.call(thisArg, createMenuItemProxy(item), i, this)) {
+              return item;
+            }
+          }
+          return undefined;
+        },
+        writable: true,
+        configurable: true,
+        enumerable: false,
+      });
+    } catch (_) {}
+  }
+
   function translateMenuTree(item) {
-    if (!item) return;
-    if (item.label) {
+    if (!item || typeof item !== 'object') return;
+    const origLabel = resolveOriginalLabel(item);
+    if (typeof item.label === 'string' && item.label) {
       const next = translateLabelStr(item.label);
       if (next !== item.label) {
-        try { item.label = next; } catch (e) {}
+        try {
+          Object.defineProperty(item, '__agOrigLabel', {
+            value: origLabel || item.label,
+            writable: true,
+            configurable: true,
+            enumerable: false,
+          });
+        } catch (_) {}
+        try { item.label = next; } catch (_) {}
+        wrapMenuItemClick(item);
+      } else if (item.id === 'check-for-updates') {
+        wrapMenuItemClick(item);
       }
     }
+
+    if (SKIP_SUBMENU_PARENTS.has(origLabel) || SKIP_SUBMENU_PARENTS.has(item.label)) {
+      return;
+    }
+
     if (item.submenu) {
       if (Array.isArray(item.submenu)) {
         item.submenu.forEach(translateMenuTree);
@@ -50,7 +150,7 @@
   }
 
   try {
-    const { Menu } = require('electron');
+    const { Menu, Tray } = require('electron');
     if (Menu && !Menu.__isTranslated) {
       if (Menu.buildFromTemplate) {
         const origBuild = Menu.buildFromTemplate;
@@ -58,7 +158,12 @@
           if (Array.isArray(template)) {
             template.forEach(translateMenuTree);
           }
-          return origBuild.call(this, template);
+          const built = origBuild.call(this, template);
+          if (built && Array.isArray(built.items)) {
+            built.items.forEach(translateMenuTree);
+            patchMenuItemsFind(built);
+          }
+          return built;
         };
       }
       if (Menu.setApplicationMenu) {
@@ -66,11 +171,23 @@
         Menu.setApplicationMenu = function(menu) {
           if (menu && Array.isArray(menu.items)) {
             menu.items.forEach(translateMenuTree);
+            patchMenuItemsFind(menu);
           }
           return origSetAppMenu.call(this, menu);
         };
       }
       Menu.__isTranslated = true;
+    }
+    if (Tray && Tray.prototype && typeof Tray.prototype.setContextMenu === 'function' && !Tray.prototype.__agTrayTranslated) {
+      const origSetContextMenu = Tray.prototype.setContextMenu;
+      Tray.prototype.setContextMenu = function(menu) {
+        if (menu && Array.isArray(menu.items)) {
+          menu.items.forEach(translateMenuTree);
+          patchMenuItemsFind(menu);
+        }
+        return origSetContextMenu.call(this, menu);
+      };
+      Tray.prototype.__agTrayTranslated = true;
     }
   } catch (e) {
     console.error("Menu hooking failed:", e);

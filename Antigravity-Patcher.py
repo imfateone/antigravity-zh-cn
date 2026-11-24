@@ -138,18 +138,27 @@ def remove_injected_block(file_path, marker, name):
             f.write(clean_content)
         print(f"[恢复] 已移除旧的 {name} ({os.path.basename(file_path)})")
 
-def replace_in_file(file_path, target, replacement):
+def replace_in_file(file_path, target, replacement, *, optional=False):
     if not os.path.exists(file_path):
-        return
+        return "missing_file"
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
+    if content.count(target) > 0:
+        updated = content.replace(target, replacement)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(updated)
+        print(f"[成功] 执行目标替换 ({os.path.basename(file_path)})")
+        return "applied"
     if replacement in content:
         print(f"[跳过] 目标已替换 ({os.path.basename(file_path)})")
-        return
-    content = content.replace(target, replacement)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    print(f"[成功] 执行目标替换 ({os.path.basename(file_path)})")
+        return "already_applied"
+    label = os.path.basename(file_path)
+    snippet = target.replace("\n", "\\n")[:40]
+    if optional:
+        print(f"[跳过] 当前版本未包含该可选锚点 ({label}: {snippet})")
+    else:
+        print(f"[警告] 未找到替换锚点，已跳过写入 ({label}: {snippet})")
+    return "not_found"
 
 def ensure_desktop_shortcut(exe_path):
     if sys.platform != "win32" or not os.path.exists(exe_path):
@@ -273,8 +282,8 @@ def _inject_all_translations(target_app_dir):
     )
     remove_injected_block(updater_path, "Antigravity Chinese Localization Engine - Auto Update Hook", "自动更新封锁 Hook")
 
-    replace_in_file(tray_path, "'Show Antigravity'", "'显示 Antigravity'")
-    replace_in_file(tray_path, "'Quit'", "'退出'")
+    replace_in_file(tray_path, "'Show Antigravity'", "'显示 Antigravity'", optional=True)
+    replace_in_file(tray_path, "'Quit'", "'退出'", optional=True)
     replace_in_file(
         tray_path,
         "(count > 0 ? `${count}` : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'",
@@ -301,14 +310,7 @@ def _inject_all_translations(target_app_dir):
             print(f"[成功] 已成功汉化 WSL 启动界面 ({os.path.basename(splash_path)})")
 
     loading_path = os.path.join(target_app_dir, "dist", "loadingOverlay.js")
-    if os.path.exists(loading_path):
-        with open(loading_path, "r", encoding="utf-8") as f:
-            loading_content = f.read()
-        patched_loading = loading_content.replace(">Loading Antigravity<", ">正在加载 Antigravity<")
-        if patched_loading != loading_content:
-            with open(loading_path, "w", encoding="utf-8") as f:
-                f.write(patched_loading)
-            print(f"[成功] 已成功汉化启动加载界面 ({os.path.basename(loading_path)})")
+    replace_in_file(loading_path, ">Loading Antigravity<", ">正在加载 Antigravity<", optional=True)
 
 
 def apply_patch(relaunch=True):

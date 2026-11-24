@@ -1,5 +1,12 @@
 (() => {
   const fields = ['placeholder', 'title', 'aria-label', 'data-tooltip', 'data-title'];
+  const boundaryAttrs = [
+    'data-agy-turn-host', 'data-testid', 'data-lexical-editor',
+    'data-markdown', 'data-markdown-root', 'data-message-content',
+    'data-artifact-content', 'data-artifact-preview', 'data-diagnostic',
+    'data-quotable-root', 'data-select-popup',
+  ];
+  const boundaryAttrSet = new Set(boundaryAttrs);
   const textSlots = new WeakMap();
   const attrSlots = new WeakMap();
   const ancestorIndex = new WeakMap();
@@ -188,7 +195,8 @@
     if (!canInspect(node)) return true;
     const element = node.nodeType === 1 ? node : node.parentElement;
     if (node.nodeType === 1 && node.id) portals.indexPanel(node);
-    return !element || dom.isProtected(element) || portals.blocks(element);
+    const blocked = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
+    return !element || blocked || portals.blocks(element);
   }
 
   function queueAttr(element, attr) {
@@ -294,12 +302,23 @@
     } else if (name === 'id') {
       portals.indexPanel(element);
       if (connected(element)) portals.inspectPanel(element);
+      if (ancestorIndex.get(element)?.size && dom.isProtected(element)) revoke(element);
+      const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
+      if (!prunable && connected(element) && element.getAttribute('role') === 'tooltip') mounts.add(element);
     } else if (name === 'contenteditable') {
       if (dom.isProtected(element)) revoke(element);
       else mounts.add(element);
-    } else if (name === 'class' || name === 'role') {
+    } else if (name === 'class' || name === 'role' || boundaryAttrSet.has(name)) {
+      const isBoundary = boundaryAttrSet.has(name);
       if (ancestorIndex.get(element)?.size &&
-          (dom.isProtected(element) || element.getAttribute('role') === 'log')) revoke(element);
+          (dom.isProtected(element) || element.getAttribute('role') === 'log' || isBoundary)) {
+        revoke(element);
+      }
+      const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
+      if (!prunable && connected(element) &&
+          ((dom.shellOwner && dom.shellOwner(element)) || (dom.overviewSlot && dom.overviewSlot(element)) || dom.textSlot(element))) {
+        mounts.add(element);
+      }
     } else {
       queueAttr(element, name);
     }
@@ -333,7 +352,7 @@
       subtree: true,
       attributes: true,
       attributeOldValue: true,
-      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'id', 'contenteditable', 'class', 'role'],
+      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
     });
     mounts.add(document.body);
     schedule();

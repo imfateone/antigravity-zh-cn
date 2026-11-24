@@ -820,6 +820,86 @@ class TestAntigravityZhPatcher(unittest.TestCase):
                     self.assertEqual(info2["Arguments"], info["Arguments"])
                     self.assertEqual(info2["TargetPath"], info["TargetPath"])
 
+    def test_native_menu_behavior_in_node(self):
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node not installed")
+        subprocess.run(
+            [node, str(FIXTURES_DIR / "native_menu.cjs"),
+             str(REPO_DIR / "antigravity_localization" / "renderer")],
+            check=True,
+        )
+
+    def test_replace_in_file_reports_zero_hit_without_writing(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "tray.js"
+            original = "console.log('keep intact');\n"
+            p.write_text(original, encoding="utf-8")
+
+            self.assertEqual(Patcher.replace_in_file(str(p), "'Missing'", "'缺失'", optional=True), "not_found")
+            self.assertEqual(p.read_text(encoding="utf-8"), original)
+
+            self.assertEqual(Patcher.replace_in_file(str(p), "'keep intact'", "'保持原样'"), "applied")
+            self.assertIn("'保持原样'", p.read_text(encoding="utf-8"))
+            self.assertEqual(Patcher.replace_in_file(str(p), "'keep intact'", "'保持原样'"), "already_applied")
+
+    def test_chromium_overview_and_p0_regressions(self):
+        html = (FIXTURES_DIR / "overview_and_p0.html").read_text(encoding="utf-8")
+        res = self._run_in_headless_chromium(html)
+
+        self.assertEqual(res["ddOverview"], "概览")
+        self.assertEqual(res["ddCustomizeAria"], "自定义分区")
+        self.assertEqual(res["ddReview"], "审阅")
+        self.assertEqual(res["ddFiles"], "文件")
+        self.assertEqual(res["ddTerminal"], "终端")
+        self.assertEqual(res["ddPlugins"], "插件")
+        self.assertEqual(res["ddBgLbl"], "后台任务")
+        self.assertEqual(res["ddBgBadge"], "8")
+        self.assertTrue(res["ddBgBadgeSameNode"])
+        self.assertEqual(res["ddBgMore"], "展开其余 3 项")
+        self.assertEqual(res["extHostHdr"], "Settings")
+        self.assertEqual(res["extDecorator"], "Settings")
+        self.assertEqual(res["extAccumulated"], "Settings")
+        self.assertEqual(res["ddReviewDetail"], "Settings")
+        self.assertEqual(res["ddDiffStats"], "Settings")
+        self.assertEqual(res["ddPluginItem"], "Settings")
+        self.assertEqual(res["ddBgTaskText"], "Settings")
+
+        self.assertEqual(res["dockOverview"], "概览")
+        self.assertEqual(res["dockReview"], "审阅")
+        self.assertEqual(res["dockBgLbl"], "后台任务")
+        self.assertEqual(res["dockBgBadge"], "4")
+        self.assertEqual(res["auxBgLbl"], "后台任务")
+        self.assertEqual(res["auxBgBadge"], "2")
+
+        self.assertEqual(res["gcpProjText"], "Settings")
+        self.assertEqual(res["gcpProjTitle"], "Settings")
+        self.assertEqual(res["normalSelectItem"], "系统默认")
+
+        self.assertEqual(res["dynTurnInitial"], "设置")
+        self.assertEqual(res["dynTurnAfter"], "Settings")
+        self.assertEqual(res["agyPrefixGuard"], "Settings")
+
+        self.assertEqual(res["lateDlgBefore"], "Settings")
+        self.assertEqual(res["lateDlgAfter"], "设置")
+
+        self.assertEqual(res["nestedArtName"], "Settings")
+        self.assertEqual(res["nestedArtClose"], "关闭")
+        self.assertEqual(res["nestedArtCloseTitle"], "关闭")
+        self.assertEqual(res["nestedArtContentBtn"], "Review")
+
+        self.assertEqual(res["tipOvText"], "切换概览面板")
+        self.assertEqual(res["tipProjText"], "Settings")
+        self.assertEqual(res["browserReload"], "重新加载")
+        self.assertEqual(res["browserReloadTitle"], "重新加载")
+        self.assertEqual(res["termTitle"], "终端")
+        self.assertEqual(res["guardedWrites"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
