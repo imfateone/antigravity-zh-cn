@@ -138,12 +138,17 @@ def remove_injected_block(file_path, marker, name):
             f.write(clean_content)
         print(f"[恢复] 已移除旧的 {name} ({os.path.basename(file_path)})")
 
-def replace_in_file(file_path, target, replacement, *, optional=False):
+def replace_in_file(file_path, target, replacement, *, optional=False, expected_count=None):
     if not os.path.exists(file_path):
         return "missing_file"
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-    if content.count(target) > 0:
+    hits = content.count(target)
+    if hits > 0:
+        if expected_count is not None and hits != expected_count:
+            label = os.path.basename(file_path)
+            print(f"[警告] 替换命中次数异常（预期 {expected_count}，实际 {hits}），已跳过写入 ({label})")
+            return "unexpected_count"
         updated = content.replace(target, replacement)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(updated)
@@ -273,6 +278,13 @@ def _inject_all_translations(target_app_dir):
     updater_path = os.path.join(target_app_dir, "dist", "updater.js")
 
     append_once(preload_path, DOM_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine", "Web UI Injection")
+    replace_in_file(
+        menu_path,
+        "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel);",
+        "const submenuItem = appMenu.items.find((item) => item.label === submenuLabel || item.__agOrigLabel === submenuLabel);",
+        optional=True,
+        expected_count=1,
+    )
     append_once(menu_path, MENU_TRANSLATOR_INJECTION, "Antigravity Chinese Localization Engine - Menu", "Menu Translator Injection")
     append_once(
         language_server_path,

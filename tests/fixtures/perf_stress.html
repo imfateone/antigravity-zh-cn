@@ -1,0 +1,277 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Performance Stress &amp; Deep Tree Benchmarks</title></head>
+<body>
+<div id="perf-root"></div>
+
+<script>
+  const allLongTasks = [];
+  window.__reportsLongTasks = false;
+  if (typeof PerformanceObserver === 'function' && PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
+    window.__reportsLongTasks = true;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        allLongTasks.push({ start: entry.startTime, duration: +entry.duration.toFixed(1) });
+      }
+    }).observe({ entryTypes: ['longtask'] });
+  }
+
+  window.__qsaCalls = 0;
+  const origQsa = Document.prototype.querySelectorAll;
+  Document.prototype.querySelectorAll = function (sel) {
+    window.__qsaCalls++;
+    return origQsa.call(this, sel);
+  };
+</script>
+<script src="__LOC_JS_URL__"></script>
+<script>
+const waitFrames = (n = 1) => new Promise((resolve) => {
+  let left = n;
+  const step = () => { if (--left <= 0) resolve(); else requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+});
+
+async function waitUntil(predicate, maxFrames = 120) {
+  for (let i = 0; i < maxFrames; i++) {
+    if (predicate()) return true;
+    await waitFrames(1);
+  }
+  return Boolean(predicate());
+}
+
+const nextTask = () => new Promise((r) => setTimeout(r, 0));
+
+(async () => {
+  try {
+    const perfRoot = document.getElementById('perf-root');
+    const benchWindows = [];
+    const openWindow = (name) => {
+      const win = { name, start: performance.now(), end: Infinity };
+      benchWindows.push(win);
+      return win;
+    };
+
+    // --- 1. Root class toggle storm (800 deep controls x 90 frames + late new label) ---
+    const dlg = document.createElement('div');
+    dlg.setAttribute('data-testid', 'settings-sidebar');
+    dlg.className = 'theme-a';
+    const leaves800 = [];
+    for (let i = 0; i < 800; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'btn idle';
+      btn.textContent = 'Settings';
+      dlg.appendChild(btn);
+      leaves800.push(btn);
+    }
+    perfRoot.appendChild(dlg);
+    await waitUntil(() => leaves800[799].textContent === '设置', 120);
+    await waitFrames(2);
+
+    await nextTask();
+    const w1 = openWindow('p1_storm');
+    let lateBtn = null;
+    let lateTranslatedInFrames = -1;
+    for (let f = 0; f < 90; f++) {
+      dlg.className = f % 2 === 0 ? 'theme-b' : 'theme-a';
+      if (f === 10) {
+        lateBtn = document.createElement('button');
+        lateBtn.textContent = 'New Conversation';
+        dlg.appendChild(lateBtn);
+      }
+      await waitFrames(1);
+      if (lateBtn && lateTranslatedInFrames === -1 && lateBtn.textContent === '新建对话') {
+        lateTranslatedInFrames = f - 10;
+      }
+    }
+    w1.end = performance.now();
+    await nextTask();
+    const rootStormOk = leaves800.every((b) => b.textContent === '设置');
+
+    // --- 2. 2,000-leaf batch pure-style class toggle x 5 batches ---
+    const bulkWrap = document.createElement('div');
+    bulkWrap.setAttribute('data-testid', 'settings-button');
+    const leaves2000 = [];
+    for (let i = 0; i < 2000; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'leaf off';
+      btn.textContent = 'Open';
+      bulkWrap.appendChild(btn);
+      leaves2000.push(btn);
+    }
+    perfRoot.appendChild(bulkWrap);
+    await waitUntil(() => leaves2000[1999].textContent === '打开', 180);
+    await waitFrames(2);
+
+    await nextTask();
+    const w2 = openWindow('p2_batch');
+    const syncBatchDurations = [];
+    for (let b = 0; b < 5; b++) {
+      const cls = b % 2 === 0 ? 'leaf on' : 'leaf off';
+      const t0 = performance.now();
+      for (let i = 0; i < leaves2000.length; i++) {
+        leaves2000[i].className = cls;
+      }
+      // Yield a macrotask to capture synchronous MutationObserver callback overhead
+      await new Promise((r) => setTimeout(r, 0));
+      syncBatchDurations.push(performance.now() - t0);
+      await waitFrames(1);
+    }
+    w2.end = performance.now();
+    await nextTask();
+    syncBatchDurations.sort((a, b) => a - b);
+    const batchMedianMs = syncBatchDurations[2];
+    const batchMaxMs = syncBatchDurations[syncBatchDurations.length - 1];
+
+    // --- 3. 40-level deep tree x 1,000 leaves classification benchmark (end-to-end) ---
+    let hitCur = document.createElement('div');
+    hitCur.setAttribute('data-testid', 'settings-sidebar');
+    for (let d = 0; d < 39; d++) {
+      const nxt = document.createElement('div');
+      hitCur.appendChild(nxt);
+      hitCur = nxt;
+    }
+    const deepHitContainer = hitCur;
+    for (let i = 0; i < 500; i++) {
+      const s = document.createElement('span');
+      s.textContent = 'Settings';
+      deepHitContainer.appendChild(s);
+    }
+
+    let missCur = document.createElement('div');
+    for (let d = 0; d < 39; d++) {
+      const nxt = document.createElement('div');
+      missCur.appendChild(nxt);
+      missCur = nxt;
+    }
+    const deepMissContainer = missCur;
+    for (let i = 0; i < 500; i++) {
+      const s = document.createElement('span');
+      s.textContent = 'Settings';
+      deepMissContainer.appendChild(s);
+    }
+
+    let hitRoot = deepHitContainer;
+    while (hitRoot.parentElement) hitRoot = hitRoot.parentElement;
+    let missRoot = deepMissContainer;
+    while (missRoot.parentElement) missRoot = missRoot.parentElement;
+
+    await nextTask();
+    const w3 = openWindow('p3_deep');
+    const deepStart = performance.now();
+    perfRoot.appendChild(hitRoot);
+    perfRoot.appendChild(missRoot);
+    await waitUntil(() => deepHitContainer.lastElementChild.textContent === '设置', 60);
+    await waitFrames(2);
+    const deep1000TotalMs = performance.now() - deepStart;
+    w3.end = performance.now();
+    await nextTask();
+    const deep1000SettledOk =
+      Array.from(deepHitContainer.children).every((c) => c.textContent === '设置') &&
+      Array.from(deepMissContainer.children).every((c) => c.textContent === 'Settings');
+
+    // --- 4. 2,000-cell unmarked artifact-view body ---
+    const artView = document.createElement('div');
+    artView.setAttribute('data-testid', 'artifact-view');
+    const artHdr = document.createElement('div');
+    artHdr.setAttribute('data-testid', 'artifact-editor-header');
+    const artClose = document.createElement('button');
+    artClose.textContent = 'Close';
+    artHdr.appendChild(artClose);
+    const artTableWrap = document.createElement('div');
+    const table = document.createElement('table');
+    let bodyWrites = 0;
+    const bodyCells = [];
+    for (let i = 0; i < 2000; i++) {
+      const td = document.createElement('td');
+      td.textContent = 'Settings';
+      table.appendChild(td);
+      bodyCells.push(td);
+    }
+    artTableWrap.appendChild(table);
+    const artObs = new MutationObserver((recs) => { bodyWrites += recs.length; });
+    artObs.observe(artTableWrap, { childList: true, characterData: true, attributes: true, subtree: true });
+    artView.appendChild(artHdr);
+    artView.appendChild(artTableWrap);
+
+    await nextTask();
+    const w4 = openWindow('p4_art');
+    perfRoot.appendChild(artView);
+    await waitUntil(() => artClose.textContent === '关闭', 30);
+    await waitFrames(3);
+    w4.end = performance.now();
+    await nextTask();
+    artObs.disconnect();
+
+    // --- 5. 10,000 background nodes + 60 Tooltip opens (4 text leaves each) ---
+    const bgWrap = document.createElement('div');
+    for (let i = 0; i < 10000; i++) {
+      const d = document.createElement('div');
+      d.textContent = 'bg';
+      bgWrap.appendChild(d);
+    }
+    const bgSentinel = document.createElement('span');
+    bgSentinel.setAttribute('data-testid', 'settings-button');
+    bgSentinel.textContent = 'Settings';
+    perfRoot.appendChild(bgWrap);
+    perfRoot.appendChild(bgSentinel);
+    const tipTrigger = document.createElement('button');
+    tipTrigger.setAttribute('data-testid', 'settings-button');
+    perfRoot.appendChild(tipTrigger);
+
+    await waitUntil(() => bgSentinel.textContent === '设置', 200);
+    await waitFrames(2);
+
+    await nextTask();
+    const w5 = openWindow('p5_tooltips');
+    const qsaBefore = window.__qsaCalls;
+    let tooltipsAllTranslated = true;
+    for (let k = 0; k < 60; k++) {
+      const tipId = `perf-tt-${k}`;
+      tipTrigger.setAttribute('aria-describedby', tipId);
+      const tip = document.createElement('div');
+      tip.setAttribute('role', 'tooltip');
+      tip.id = tipId;
+      for (let j = 0; j < 4; j++) {
+        const sp = document.createElement('span');
+        sp.textContent = 'Settings';
+        tip.appendChild(sp);
+      }
+      document.body.appendChild(tip);
+      const settled = await waitUntil(() => tip.lastElementChild.textContent === '设置', 15);
+      if (!settled || !Array.from(tip.children).every((sp) => sp.textContent === '设置')) {
+        tooltipsAllTranslated = false;
+      }
+      tip.remove();
+    }
+    const qsaDeltaFor60Tooltips = window.__qsaCalls - qsaBefore;
+    w5.end = performance.now();
+    await nextTask();
+
+    await waitFrames(3);
+    const longTasks = allLongTasks.filter((e) =>
+      benchWindows.some((w) => e.start + e.duration > w.start && e.start < w.end)
+    );
+
+    window.__TEST_RESULT__ = {
+      reportsLongTasks: window.__reportsLongTasks,
+      longTasks,
+      rootStormOk,
+      lateTranslatedInFrames,
+      batchMedianMs,
+      batchMaxMs,
+      deep1000SettledOk,
+      deep1000TotalMs,
+      artCloseText: artClose.textContent,
+      artBodyUntouched: bodyCells.every((c) => c.textContent === 'Settings'),
+      artBodyWrites: bodyWrites,
+      tooltipsAllTranslated,
+      qsaDeltaFor60Tooltips,
+    };
+    window.__TEST_DONE__ = true;
+  } catch (err) {
+    window.__TEST_ERROR__ = err && err.stack ? err.stack : String(err);
+  }
+})();
+</script>
+</body>
+</html>

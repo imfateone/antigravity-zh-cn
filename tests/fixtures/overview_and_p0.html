@@ -1,13 +1,21 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Overview &amp; P0 Guard Regression</title></head>
+<head><meta charset="utf-8"><title>Overview &amp; P0/P1 Adversarial Regression</title></head>
 <body>
 <div id="app">
   <div data-testid="pane-titlebar-toolbar">
-    <button data-testid="toggle-overview-panel" data-tooltip-id="tip-ov"></button>
+    <button data-testid="toggle-overview-panel" id="ov-trigger" aria-describedby="tt-useid-1"></button>
   </div>
 
-  <!-- Overview Dropdown (2.34.0 Sed structure) -->
+  <!-- Valid trigger followed by duplicate protected trigger sharing same tooltip ID -->
+  <button data-testid="settings-button" aria-describedby="tt-dup-1">DupA</button>
+  <div class="prose">
+    <button aria-describedby="tt-dup-1">DupB</button>
+    <button aria-describedby="tt-prose-1">ProseBtn</button>
+  </div>
+  <button data-testid="bottom-terminal-panel-new" id="tt-revoke-trigger" aria-describedby="tt-revoke-1"></button>
+
+  <!-- Overview Dropdown (exact 2.34.0 Sed -> $I -> D6 depth) -->
   <div data-testid="battle-overview-dropdown">
     <div data-testid="overview-panel" id="dd-panel">
       <div data-testid="overview-panel-host-header"><span id="ext-host-hdr">Settings</span></div>
@@ -17,7 +25,7 @@
           <button type="button" data-testid="overview-panel-customize-trigger" id="dd-customize" aria-label="Customize Sections"></button>
         </div>
       </div>
-      <div>
+      <div class="flex flex-col overflow-y-auto">
         <div>
           <div data-testid="overview-decorator-row"><span id="ext-decorator">Settings</span></div>
           <button type="button" data-testid="overview-panel-row-review">
@@ -38,15 +46,23 @@
             <div id="dd-plugin-sub"><span id="dd-plugin-item">Settings</span></div>
           </div>
         </div>
-        <div>
-          <div data-testid="overview-accumulated-section-1"><span id="ext-accumulated">Settings</span></div>
-          <div class="p-1" id="dd-bg-section">
-            <button type="button" id="dd-bg-hdr">
-              <span class="agy-hover-label" id="dd-bg-lbl">Background Tasks</span>
-              <span id="dd-bg-badge">7</span>
-            </button>
-            <div id="dd-bg-body"><span id="dd-bg-task-text">Settings</span></div>
-            <button type="button" aria-expanded="false" id="dd-bg-more">Show 3 more</button>
+        <div data-testid="overview-accumulated-section-1"><span id="ext-accumulated">Settings</span></div>
+        <div class="p-1" id="dd-bg-section">
+          <button type="button" id="dd-bg-hdr">
+            <span class="agy-hover-label" id="dd-bg-lbl">Background Tasks</span>
+            <span id="dd-bg-badge">7</span>
+          </button>
+          <div id="dd-bg-body">
+            <div data-testid="background-task-row"><span class="agy-hover-label" id="dd-bg-task-text">Settings</span></div>
+          </div>
+          <button type="button" aria-expanded="false" id="dd-bg-more">Show 3 more</button>
+          <button type="button" aria-expanded="false" id="dd-bg-custom-btn">Review</button>
+        </div>
+        <!-- Deeply nested custom div.p-1 must NOT be treated as first-party D6 section -->
+        <div class="custom-ext-wrap">
+          <div class="p-1">
+            <button type="button"><span class="agy-hover-label" id="nested-p1-lbl">Settings</span></button>
+            <button type="button" aria-expanded="false" id="nested-p1-btn">Review</button>
           </div>
         </div>
       </div>
@@ -63,13 +79,11 @@
             <span class="agy-hover-label" id="dock-review">Review</span>
           </button>
         </div>
-        <div>
-          <div class="p-1">
-            <button type="button">
-              <span class="agy-hover-label" id="dock-bg-lbl">Background Tasks</span>
-              <span id="dock-bg-badge">4</span>
-            </button>
-          </div>
+        <div class="p-1">
+          <button type="button">
+            <span class="agy-hover-label" id="dock-bg-lbl">Background Tasks</span>
+            <span id="dock-bg-badge">4</span>
+          </button>
         </div>
       </div>
     </div>
@@ -78,6 +92,32 @@
     <span class="agy-hover-label" id="aux-bg-lbl">Background Tasks</span>
     <span id="aux-bg-badge">2</span>
   </div>
+
+  <!-- P0 Business-Data Modal & Action Guards -->
+  <div data-testid="declared-permissions-modal">
+    <span id="perm-cmd">false</span>
+    <span id="perm-arg">Open</span>
+    <input id="perm-input" placeholder="Edit" value="Settings">
+    <button data-testid="declared-permissions-confirm" id="perm-confirm">Saving...</button>
+  </div>
+  <div data-testid="plugin-source-caution-modal">
+    <strong id="caution-plugin-name">Files</strong>
+    <button data-testid="cancel-plugin-source-caution" id="caution-cancel">Cancel</button>
+    <button data-testid="confirm-plugin-source-caution" id="caution-confirm">Add anyway</button>
+    <button data-testid="review-plugin-source-caution" id="caution-review">Review contents</button>
+  </div>
+  <div data-testid="delete-mcp-modal">
+    <strong id="del-mcp-name">Settings</strong>
+    <button data-testid="cancel-delete-mcp" id="del-mcp-cancel">Cancel</button>
+    <button data-testid="confirm-delete-mcp" id="del-mcp-confirm">Delete</button>
+  </div>
+  <div data-testid="delete-sidecar-modal">
+    <strong id="del-sidecar-name">Review</strong>
+  </div>
+  <div data-testid="customize-sidebar-modal">
+    <span id="custom-ext-name">Settings</span>
+  </div>
+  <button data-testid="running-row-stop" aria-label="Stop execution" id="run-stop-btn">Stop</button>
 
   <!-- P0 GCP Project Combobox Guard vs Normal Select -->
   <div data-select-popup="" data-testid="gcp-project-combobox-popup" class="agy-overlay">
@@ -98,7 +138,7 @@
   <!-- P1 Late class upgrade on mounted dialog -->
   <div role="dialog" id="late-settings-dlg"><span id="late-dlg-lbl">Settings</span></div>
 
-  <!-- P1 Real 2.34.0 nested artifact-editor-header inside artifact-view -->
+  <!-- P0/P1 Artifact nesting + .prose bypass guards -->
   <div data-testid="artifact-view">
     <div data-testid="artifact-editor-header">
       <span class="font-semibold" id="nested-art-name">Settings</span>
@@ -108,10 +148,31 @@
       <button id="nested-art-content-btn">Review</button>
     </div>
   </div>
+  <div class="prose">
+    <div data-testid="artifact-view">
+      <div data-testid="artifact-editor-header">
+        <button id="prose-fake-art-btn">Close</button>
+      </div>
+    </div>
+  </div>
+  <div id="dyn-prose-wrap">
+    <div data-testid="artifact-view">
+      <div data-testid="artifact-editor-header">
+        <button id="dyn-prose-art-btn">Close</button>
+      </div>
+    </div>
+  </div>
 
-  <!-- P1 Verified Tooltip + Browser + Bottom Terminal -->
-  <div role="tooltip" id="tip-ov"><span id="tip-ov-text">Toggle Overview Panel</span></div>
-  <div role="tooltip" id="tip-proj"><span id="tip-proj-text">Settings</span></div>
+  <!-- Real 2.34.0 Tooltips linked via aria-describedby (independent useId) -->
+  <div role="tooltip" id="tt-useid-1">
+    <span id="tip-ov-text">Toggle Overview Panel</span>
+    <kbd id="tip-ov-kbd">Review</kbd>
+  </div>
+  <div role="tooltip" id="tt-dup-1"><span id="tip-dup-text">Settings</span></div>
+  <div role="tooltip" id="tt-prose-1"><span id="tip-prose-text">Open</span></div>
+  <div role="tooltip" id="tt-revoke-1"><span id="tip-revoke-text">New Terminal</span></div>
+  <div role="tooltip" id="tt-unlinked"><span id="tip-proj-text">Settings</span></div>
+
   <button type="button" data-testid="builtin-browser-reload" title="Reload" id="browser-reload">Reload</button>
   <span data-testid="bottom-terminal-panel-title" id="term-title">Terminal</span>
 </div>
@@ -126,10 +187,25 @@
     document.getElementById('dd-diff-stats'),
     document.getElementById('dd-plugin-item'),
     document.getElementById('dd-bg-task-text'),
+    document.getElementById('dd-bg-custom-btn'),
+    document.getElementById('nested-p1-lbl'),
+    document.getElementById('nested-p1-btn'),
     document.getElementById('agy-prefix-guard'),
     document.getElementById('nested-art-name'),
     document.getElementById('nested-art-content-btn'),
+    document.getElementById('prose-fake-art-btn'),
+    document.getElementById('tip-ov-kbd'),
+    document.getElementById('tip-dup-text'),
+    document.getElementById('tip-prose-text'),
     document.getElementById('tip-proj-text'),
+    document.getElementById('perm-cmd'),
+    document.getElementById('perm-arg'),
+    document.getElementById('perm-input'),
+    document.getElementById('caution-plugin-name'),
+    document.getElementById('del-mcp-name'),
+    document.getElementById('del-sidecar-name'),
+    document.getElementById('custom-ext-name'),
+    document.getElementById('run-stop-btn'),
   ];
   window.__guardedWrites = 0;
   const guardObs = new MutationObserver((records) => {
@@ -152,7 +228,9 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     for (let f = 0; f < 40; f++) {
       await waitFrames(1);
       if (document.getElementById('dd-overview').textContent === '概览' &&
-          document.getElementById('dyn-turn-host').textContent === '设置') {
+          document.getElementById('dyn-turn-host').textContent === '设置' &&
+          document.getElementById('tip-revoke-text').textContent === '新建终端' &&
+          document.getElementById('dyn-prose-art-btn').textContent === '关闭') {
         break;
       }
     }
@@ -162,15 +240,25 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     const badgeTextNode = badgeEl.firstChild;
     const dynTurnInitial = document.getElementById('dyn-turn-host').textContent;
     const lateDlgBefore = document.getElementById('late-dlg-lbl').textContent;
+    const tipRevokeInitial = document.getElementById('tip-revoke-text').textContent;
+    const dynProseArtInitial = document.getElementById('dyn-prose-art-btn').textContent;
 
-    // 1. Live badge update from 7 -> 8 must preserve text node identity
+    // 1. Live badge mutation
     badgeTextNode.data = '8';
-    // 2. Dynamic boundary attribute addition must revoke & restore source
+    // 2. Dynamic boundary attr revocation
     document.getElementById('dyn-turn-host').setAttribute('data-agy-turn-host', '1');
-    // 3. Late class upgrade on dialog must trigger re-scan
+    // 3. Late class upgrade on dialog
     document.getElementById('late-settings-dlg').className = 'settings-modal-container';
+    // 4. Bypass attempts on .prose artifacts + late attribute write
+    document.getElementById('prose-fake-art-btn').setAttribute('title', 'Copy');
+    guardObs.takeRecords();
+    document.getElementById('dyn-prose-wrap').className = 'prose';
+    // 5. Tooltip aria-describedby unlink revocation
+    document.getElementById('tt-revoke-trigger').removeAttribute('aria-describedby');
 
     await waitFrames(4);
+    document.getElementById('dyn-prose-art-btn').setAttribute('title', 'Copy');
+    await waitFrames(3);
     guardObs.disconnect();
 
     window.__TEST_RESULT__ = {
@@ -184,6 +272,9 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       ddBgBadge: badgeEl.textContent,
       ddBgBadgeSameNode: badgeEl.firstChild === badgeTextNode,
       ddBgMore: document.getElementById('dd-bg-more').textContent,
+      ddBgCustomBtn: document.getElementById('dd-bg-custom-btn').textContent,
+      nestedP1Lbl: document.getElementById('nested-p1-lbl').textContent,
+      nestedP1Btn: document.getElementById('nested-p1-btn').textContent,
       extHostHdr: document.getElementById('ext-host-hdr').textContent,
       extDecorator: document.getElementById('ext-decorator').textContent,
       extAccumulated: document.getElementById('ext-accumulated').textContent,
@@ -198,6 +289,22 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       dockBgBadge: document.getElementById('dock-bg-badge').textContent,
       auxBgLbl: document.getElementById('aux-bg-lbl').textContent,
       auxBgBadge: document.getElementById('aux-bg-badge').textContent,
+
+      permCmd: document.getElementById('perm-cmd').textContent,
+      permArg: document.getElementById('perm-arg').textContent,
+      permPh: document.getElementById('perm-input').getAttribute('placeholder'),
+      permVal: document.getElementById('perm-input').value,
+      permConfirm: document.getElementById('perm-confirm').textContent,
+      cautionPluginName: document.getElementById('caution-plugin-name').textContent,
+      cautionCancel: document.getElementById('caution-cancel').textContent,
+      cautionConfirm: document.getElementById('caution-confirm').textContent,
+      cautionReview: document.getElementById('caution-review').textContent,
+      delMcpName: document.getElementById('del-mcp-name').textContent,
+      delMcpCancel: document.getElementById('del-mcp-cancel').textContent,
+      delMcpConfirm: document.getElementById('del-mcp-confirm').textContent,
+      delSidecarName: document.getElementById('del-sidecar-name').textContent,
+      customExtName: document.getElementById('custom-ext-name').textContent,
+      runStopAria: document.getElementById('run-stop-btn').getAttribute('aria-label'),
 
       gcpProjText: document.getElementById('gcp-proj-item').textContent,
       gcpProjTitle: document.getElementById('gcp-proj-item').getAttribute('title'),
@@ -214,8 +321,18 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       nestedArtClose: document.getElementById('nested-art-close').textContent,
       nestedArtCloseTitle: document.getElementById('nested-art-close').getAttribute('title'),
       nestedArtContentBtn: document.getElementById('nested-art-content-btn').textContent,
+      proseFakeArtText: document.getElementById('prose-fake-art-btn').textContent,
+      proseFakeArtTitle: document.getElementById('prose-fake-art-btn').getAttribute('title'),
+      dynProseArtInitial,
+      dynProseArtAfter: document.getElementById('dyn-prose-art-btn').textContent,
+      dynProseArtTitleAfter: document.getElementById('dyn-prose-art-btn').getAttribute('title'),
 
       tipOvText: document.getElementById('tip-ov-text').textContent,
+      tipOvKbd: document.getElementById('tip-ov-kbd').textContent,
+      tipDupText: document.getElementById('tip-dup-text').textContent,
+      tipProseText: document.getElementById('tip-prose-text').textContent,
+      tipRevokeInitial,
+      tipRevokeAfter: document.getElementById('tip-revoke-text').textContent,
       tipProjText: document.getElementById('tip-proj-text').textContent,
       browserReload: document.getElementById('browser-reload').textContent,
       browserReloadTitle: document.getElementById('browser-reload').getAttribute('title'),

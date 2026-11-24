@@ -214,12 +214,24 @@ def parse_dom_routing(dom_js_path: Path = RENDERER_DIR / "antigravity_dom.js") -
     shell_match = re.search(r"const\s+shell\s*=\s*\[([\s\S]*?)\]\.join", src)
     if shell_match:
         shell_testids.update(re.findall(r'data-testid="([^"]+)"', shell_match.group(1)))
+    shell_set_match = re.search(r"const\s+SHELL_TESTIDS\s*=\s*new Set\(\[([\s\S]*?)\]\)", src)
+    if shell_set_match:
+        shell_testids.update(re.findall(r"'([^']+)'", shell_set_match.group(1)))
 
     all_referenced: set[str] = set(shell_testids)
     all_referenced.update(re.findall(r'data-testid="([^"]+)"', src))
-    all_referenced.update(re.findall(r"testId\([^)]+\)\s*[!=]==\s*'([^']+)'", src))
+    all_referenced.update(re.findall(r"(?:testId\([^)]+\)|tid)\s*[!=]==\s*'([^']+)'", src))
 
-    for set_name in ("statusIds", "permissionButtons", "sidebarActions", "titlebarActions"):
+    for set_name in (
+        "HARD_PROTECTED_TESTIDS",
+        "SHELL_TESTIDS",
+        "OVERVIEW_ROW_TESTIDS",
+        "OVERVIEW_AUX_SECTION_TESTIDS",
+        "statusIds",
+        "permissionButtons",
+        "sidebarActions",
+        "titlebarActions",
+    ):
         m = re.search(rf"const\s+{set_name}\s*=\s*new Set\(\[([\s\S]*?)\]\)", src)
         if m:
             all_referenced.update(re.findall(r"'([^']+)'", m.group(1)))

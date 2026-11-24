@@ -1540,7 +1540,8 @@ const catalog = (() => {
     "Missing a repository? Configure on GitHub": "找不到仓库？前往 GitHub 配置",
     "More cloud environments": "更多云端环境",
     "No matching": "无匹配项",
-    "Are you sure you want to delete": "确定要删除吗"
+    "Are you sure you want to delete": "确定要删除吗",
+    "Subagents": "子智能体"
 };
 
   const coreWords = {

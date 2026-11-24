@@ -297,7 +297,8 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
       await waitFrames(1);
       if (document.getElementById('btn-worked').textContent === '运行耗时 22秒' &&
           document.getElementById('turn-ts').textContent === '刚刚' &&
-          document.getElementById('comp-send').textContent === '发送') {
+          document.getElementById('comp-send').textContent === '发送' &&
+          document.getElementById('vp-title').textContent === '选择 Antigravity 语音') {
         break;
       }
     }
@@ -364,7 +365,7 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
 
     const btnThoughtUnreset = fixture.status('Worked for 7s');
     fixture.mountStatus(document.getElementById('fixture-steps'), btnThoughtUnreset);
-    await waitFrames();
+    for (let f = 0; f < 10 && btnThoughtUnreset.textContent !== '运行耗时 7秒'; f++) await waitFrames(1);
     const unresetInitial = btnThoughtUnreset.textContent;
     const unresetText = btnThoughtUnreset.firstChild;
     document.querySelector('.prose').appendChild(unresetText);
@@ -377,7 +378,7 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     latePortal.id = 'thought-portal-late';
     latePortal.innerHTML = '<div id="late-tp-settings">Settings</div><span id="late-tp-2m">2m</span>';
     document.body.appendChild(latePortal);
-    await waitFrames();
+    await waitFrames(4);
     // Unmount ONLY the trigger button while keeping expanded Portal mounted -> Portal MUST stay protected!
     lateThoughtBtn.remove();
     const lateAfterUnmountDiv = document.createElement('div');
@@ -462,7 +463,7 @@ const waitFrames = (n = 2) => new Promise((resolve) => {
     });
     goodText.data = 'Worked for 42s';
 
-    await waitFrames();
+    await waitFrames(4);
 
     // Verify removeChild works on protected node without NotFoundError
     let removeChildOk = false;

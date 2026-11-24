@@ -848,6 +848,15 @@ class TestAntigravityZhPatcher(unittest.TestCase):
             self.assertIn("'保持原样'", p.read_text(encoding="utf-8"))
             self.assertEqual(Patcher.replace_in_file(str(p), "'keep intact'", "'保持原样'"), "already_applied")
 
+            dup = Path(tmp) / "dup.js"
+            dup_original = "find('a');\nfind('a');\n"
+            dup.write_text(dup_original, encoding="utf-8")
+            self.assertEqual(
+                Patcher.replace_in_file(str(dup), "find('a')", "find('b')", expected_count=1),
+                "unexpected_count",
+            )
+            self.assertEqual(dup.read_text(encoding="utf-8"), dup_original)
+
     def test_chromium_overview_and_p0_regressions(self):
         html = (FIXTURES_DIR / "overview_and_p0.html").read_text(encoding="utf-8")
         res = self._run_in_headless_chromium(html)
@@ -862,6 +871,9 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["ddBgBadge"], "8")
         self.assertTrue(res["ddBgBadgeSameNode"])
         self.assertEqual(res["ddBgMore"], "展开其余 3 项")
+        self.assertEqual(res["ddBgCustomBtn"], "Review")
+        self.assertEqual(res["nestedP1Lbl"], "Settings")
+        self.assertEqual(res["nestedP1Btn"], "Review")
         self.assertEqual(res["extHostHdr"], "Settings")
         self.assertEqual(res["extDecorator"], "Settings")
         self.assertEqual(res["extAccumulated"], "Settings")
@@ -876,6 +888,22 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["dockBgBadge"], "4")
         self.assertEqual(res["auxBgLbl"], "后台任务")
         self.assertEqual(res["auxBgBadge"], "2")
+
+        self.assertEqual(res["permCmd"], "false")
+        self.assertEqual(res["permArg"], "Open")
+        self.assertEqual(res["permPh"], "Edit")
+        self.assertEqual(res["permVal"], "Settings")
+        self.assertEqual(res["permConfirm"], "正在保存...")
+        self.assertEqual(res["cautionPluginName"], "Files")
+        self.assertEqual(res["cautionCancel"], "取消")
+        self.assertEqual(res["cautionConfirm"], "仍要添加")
+        self.assertEqual(res["cautionReview"], "审阅内容")
+        self.assertEqual(res["delMcpName"], "Settings")
+        self.assertEqual(res["delMcpCancel"], "取消")
+        self.assertEqual(res["delMcpConfirm"], "删除")
+        self.assertEqual(res["delSidecarName"], "Review")
+        self.assertEqual(res["customExtName"], "Settings")
+        self.assertEqual(res["runStopAria"], "Stop execution")
 
         self.assertEqual(res["gcpProjText"], "Settings")
         self.assertEqual(res["gcpProjTitle"], "Settings")
@@ -892,13 +920,41 @@ class TestAntigravityZhPatcher(unittest.TestCase):
         self.assertEqual(res["nestedArtClose"], "关闭")
         self.assertEqual(res["nestedArtCloseTitle"], "关闭")
         self.assertEqual(res["nestedArtContentBtn"], "Review")
+        self.assertEqual(res["proseFakeArtText"], "Close")
+        self.assertEqual(res["proseFakeArtTitle"], "Copy")
+        self.assertEqual(res["dynProseArtInitial"], "关闭")
+        self.assertEqual(res["dynProseArtAfter"], "Close")
+        self.assertEqual(res["dynProseArtTitleAfter"], "Copy")
 
         self.assertEqual(res["tipOvText"], "切换概览面板")
+        self.assertEqual(res["tipOvKbd"], "Review")
+        self.assertEqual(res["tipDupText"], "Settings")
+        self.assertEqual(res["tipProseText"], "Open")
+        self.assertEqual(res["tipRevokeInitial"], "新建终端")
+        self.assertEqual(res["tipRevokeAfter"], "New Terminal")
         self.assertEqual(res["tipProjText"], "Settings")
         self.assertEqual(res["browserReload"], "重新加载")
         self.assertEqual(res["browserReloadTitle"], "重新加载")
         self.assertEqual(res["termTitle"], "终端")
         self.assertEqual(res["guardedWrites"], 0)
+
+    def test_chromium_perf_stress_and_deep_tree(self):
+        html = (FIXTURES_DIR / "perf_stress.html").read_text(encoding="utf-8")
+        res = self._run_in_headless_chromium(html)
+
+        self.assertTrue(res["reportsLongTasks"])
+        self.assertEqual(res["longTasks"], [])
+        self.assertTrue(res["rootStormOk"])
+        self.assertGreaterEqual(res["lateTranslatedInFrames"], 0)
+        self.assertLessEqual(res["lateTranslatedInFrames"], 3)
+        self.assertLessEqual(res["batchMedianMs"], 15.0)
+        self.assertTrue(res["deep1000SettledOk"])
+        self.assertEqual(res["artCloseText"], "关闭")
+        self.assertTrue(res["artBodyUntouched"])
+        self.assertEqual(res["artBodyWrites"], 0)
+        self.assertTrue(res["tooltipsAllTranslated"])
+        self.assertGreaterEqual(res["qsaDeltaFor60Tooltips"], 1)
+        self.assertLessEqual(res["qsaDeltaFor60Tooltips"], 60)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,41 @@
     'data-quotable-root', 'data-select-popup',
   ];
   const boundaryAttrSet = new Set(boundaryAttrs);
+
+  const isStandaloneSettings = window.location?.pathname === '/settings-standalone';
+  const ROUTING_CLASSES = new Set([
+    'prose', 'monaco-editor', 'xterm', 'katex', 'bleed-contain',
+    'artifact-preview', 'group/user-input-step',
+    'settings-modal-container', 'agy-overlay', 'agy-dialog',
+    'agy-hover-label', 'home-greeting-title', 'surface-composer',
+    'agy-composer-footer', 'agy-button-icon', 'artifact-sidebar',
+    'chat-messages', 'chat-scroll-pane', 'p-1',
+    ...(isStandaloneSettings ? ['grow', 'w-full', 'overflow-auto', 'relative', 'flex-grow', 'min-h-0'] : []),
+  ]);
+  const ROUTING_CLASS_HINT_RE = isStandaloneSettings
+    ? /\b(?:prose|monaco-editor|xterm|katex|bleed-contain|artifact-(?:preview|sidebar)|settings-modal-container|agy-(?:overlay|dialog|hover-label|composer-footer|button-icon)|home-greeting-title|surface-composer|chat-(?:messages|scroll-pane)|p-1|grow|w-full|overflow-auto|relative|flex-grow|min-h-0)\b|group\/user-input-step|(?:thought|thinking|reasoning)-content/
+    : /\b(?:prose|monaco-editor|xterm|katex|bleed-contain|artifact-(?:preview|sidebar)|settings-modal-container|agy-(?:overlay|dialog|hover-label|composer-footer|button-icon)|home-greeting-title|surface-composer|chat-(?:messages|scroll-pane)|p-1)\b|group\/user-input-step|(?:thought|thinking|reasoning)-content/;
+
+  function routingClassSignature(cls) {
+    if (!cls || typeof cls !== 'string' || !ROUTING_CLASS_HINT_RE.test(cls)) return '';
+    const parts = cls.split(/\s+/);
+    const hits = [];
+    for (let i = 0; i < parts.length; i++) {
+      const tok = parts[i];
+      if (!tok) continue;
+      if (
+        ROUTING_CLASSES.has(tok) ||
+        (tok.includes('-content') &&
+          (tok.includes('thought-content') ||
+            tok.includes('thinking-content') ||
+            tok.includes('reasoning-content')))
+      ) {
+        hits.push(tok);
+      }
+    }
+    return hits.length ? hits.sort().join(' ') : '';
+  }
+
   const textSlots = new WeakMap();
   const attrSlots = new WeakMap();
   const ancestorIndex = new WeakMap();
@@ -14,7 +49,9 @@
   const updatedTexts = new Set();
   const updatedAttrs = new Map();
   const revokedSubtrees = new Set();
+  const openTooltips = new Set();
   const portals = createPortalRegistry(connected, index, revoke);
+  dom.setPortalBlocker?.(portals.blocks);
   let cleanup = null;
   let walk = null;
   let scheduled = false;
@@ -104,6 +141,10 @@
     const old = textSlots.get(text);
     if (old && old.slot !== slot) releaseText(text, old);
     if (!slot) return;
+    if (slot.isTooltip) {
+      const tip = text.parentElement?.closest?.('[role="tooltip"][id]');
+      if (tip) openTooltips.add(tip);
+    }
     const source = text.data;
     const output = slot.format(source);
     if (output === source) {
@@ -296,29 +337,82 @@
     }
   }
 
-  function observeAttrChange(element, name) {
+  function syncTooltipsForAttr(oldValue, newValue) {
+    for (const raw of [oldValue, newValue]) {
+      if (!raw || typeof raw !== 'string') continue;
+      for (const id of raw.split(/\s+/)) {
+        if (!id) continue;
+        const tip = document.getElementById(id);
+        if (!tip || tip.getAttribute('role') !== 'tooltip') continue;
+        if (ancestorIndex.get(tip)?.size) revoke(tip);
+        const prunable = dom.shouldPrune ? dom.shouldPrune(tip) : dom.isProtected(tip);
+        if (!prunable && connected(tip)) mounts.add(tip);
+      }
+    }
+  }
+
+  function refreshOpenTooltips() {
+    if (!openTooltips.size) return;
+    for (const tip of openTooltips) {
+      if (!connected(tip) || !ancestorIndex.get(tip)?.size) {
+        openTooltips.delete(tip);
+      } else {
+        revoke(tip);
+      }
+    }
+  }
+
+  function queueEligibleMount(element) {
+    const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
+    if (prunable || !connected(element)) return;
+    if (
+      (dom.shellOwner && dom.shellOwner(element)) ||
+      (dom.overviewSlot && dom.overviewSlot(element)) ||
+      dom.textSlot(element)
+    ) {
+      mounts.add(element);
+    }
+  }
+
+  function observeAttrChange(element, name, oldValue) {
     if (name === 'aria-controls' || name === 'aria-expanded') {
       if (element.hasAttribute('aria-controls') || portals.hasTrigger(element)) portals.syncTrigger(element);
+    } else if (name === 'aria-describedby') {
+      dom.bumpTooltipRev?.();
+      syncTooltipsForAttr(oldValue, element.getAttribute('aria-describedby'));
+      refreshOpenTooltips();
     } else if (name === 'id') {
+      dom.bumpTooltipRev?.();
       portals.indexPanel(element);
       if (connected(element)) portals.inspectPanel(element);
       if (ancestorIndex.get(element)?.size && dom.isProtected(element)) revoke(element);
       const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
       if (!prunable && connected(element) && element.getAttribute('role') === 'tooltip') mounts.add(element);
+      refreshOpenTooltips();
     } else if (name === 'contenteditable') {
       if (dom.isProtected(element)) revoke(element);
       else mounts.add(element);
-    } else if (name === 'class' || name === 'role' || boundaryAttrSet.has(name)) {
+    } else if (name === 'class') {
+      const nextSig = routingClassSignature(element.getAttribute('class'));
+      const prevSig = routingClassSignature(oldValue);
+      if (nextSig === prevSig) return;
+      dom.bumpTooltipRev?.();
+      if (ancestorIndex.get(element)?.size) revoke(element);
+      queueEligibleMount(element);
+      refreshOpenTooltips();
+    } else if (name === 'role' || boundaryAttrSet.has(name)) {
+      const nextVal = element.getAttribute(name);
+      if (oldValue === nextVal) return;
+      dom.bumpTooltipRev?.();
       const isBoundary = boundaryAttrSet.has(name);
-      if (ancestorIndex.get(element)?.size &&
-          (dom.isProtected(element) || element.getAttribute('role') === 'log' || isBoundary)) {
+      if (
+        ancestorIndex.get(element)?.size &&
+        (dom.isProtected(element) || nextVal === 'log' || isBoundary)
+      ) {
         revoke(element);
       }
-      const prunable = dom.shouldPrune ? dom.shouldPrune(element) : dom.isProtected(element);
-      if (!prunable && connected(element) &&
-          ((dom.shellOwner && dom.shellOwner(element)) || (dom.overviewSlot && dom.overviewSlot(element)) || dom.textSlot(element))) {
-        mounts.add(element);
-      }
+      queueEligibleMount(element);
+      refreshOpenTooltips();
     } else {
       queueAttr(element, name);
     }
@@ -327,20 +421,36 @@
   const bodyObserver = new MutationObserver((records) => {
     portals.noteMutations(records);
     const budget = { remaining: 64 };
+    let touchedChildList = false;
+    let shouldCheckOpenTooltips = false;
     for (const record of records) {
       try {
         if (record.type === 'childList') {
+          touchedChildList = true;
           walk?.childrenChanged(record);
           for (const node of record.removedNodes) {
+            if (!shouldCheckOpenTooltips && openTooltips.size && node.nodeType === 1 &&
+                (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
+              shouldCheckOpenTooltips = true;
+            }
             try { reconcileRemoval(node, record.target, budget); } catch (_) {}
           }
           for (const node of record.addedNodes) {
+            if (!shouldCheckOpenTooltips && openTooltips.size && node.nodeType === 1 &&
+                node.getAttribute('role') !== 'tooltip' &&
+                (node.hasAttribute('aria-describedby') || node.firstElementChild)) {
+              shouldCheckOpenTooltips = true;
+            }
             if (canInspect(node) && connected(node)) mounts.add(node);
           }
         } else {
-          observeAttrChange(record.target, record.attributeName);
+          observeAttrChange(record.target, record.attributeName, record.oldValue);
         }
       } catch (_) {}
+    }
+    if (touchedChildList) {
+      dom.bumpTooltipRev?.();
+      if (shouldCheckOpenTooltips) refreshOpenTooltips();
     }
     schedule();
   });
@@ -352,7 +462,7 @@
       subtree: true,
       attributes: true,
       attributeOldValue: true,
-      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
+      attributeFilter: [...fields, 'aria-controls', 'aria-expanded', 'aria-describedby', 'id', 'contenteditable', 'class', 'role', ...boundaryAttrs],
     });
     mounts.add(document.body);
     schedule();

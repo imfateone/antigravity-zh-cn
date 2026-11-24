@@ -34,17 +34,35 @@ const fixture = (() => {
 
   function yieldAfterVisiting(element, change) {
     const closest = Element.prototype.closest;
+    const getAttribute = Element.prototype.getAttribute;
+    const hasAttributes = Element.prototype.hasAttributes;
+    let fired = false;
+    function triggerIfTarget(node) {
+      if (fired || node !== element) return;
+      fired = true;
+      Element.prototype.closest = closest;
+      Element.prototype.getAttribute = getAttribute;
+      Element.prototype.hasAttributes = hasAttributes;
+      const now = performance.now;
+      performance.now = () => now.call(performance) + 100;
+      queueMicrotask(() => {
+        performance.now = now;
+        change();
+      });
+    }
     Element.prototype.closest = function (...args) {
       const result = closest.apply(this, args);
-      if (this === element) {
-        Element.prototype.closest = closest;
-        const now = performance.now;
-        performance.now = () => now.call(performance) + 100;
-        queueMicrotask(() => {
-          performance.now = now;
-          change();
-        });
-      }
+      triggerIfTarget(this);
+      return result;
+    };
+    Element.prototype.getAttribute = function (...args) {
+      const result = getAttribute.apply(this, args);
+      triggerIfTarget(this);
+      return result;
+    };
+    Element.prototype.hasAttributes = function (...args) {
+      const result = hasAttributes.apply(this, args);
+      triggerIfTarget(this);
       return result;
     };
   }
